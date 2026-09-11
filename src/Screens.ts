@@ -400,11 +400,37 @@ export class HighscoreScreen extends GameScreen {
         { place: 10, score: 5000, gamerTag: "polygon" },
     ];
 
-    public constructor() {
+    public constructor(isInGame = false) {
         super();
         this.transitionOnTime = 0.5;
         this.transitionOffTime = 0.5;
+        this.isInGame = isInGame;
         this.entries = HighscoreScreen.ENTRIES.map((entry) => ({ ...entry }));
+    }
+
+    private isInGame: boolean;
+
+    /** Port of HighscoreScreen.HandleInput exit: in-game returns to the main
+     * menu (LoadingScreen.Load with BackgroundScreen + MainMenuScreen);
+     * otherwise it just exits back to the caller. */
+    public handleExit(): void {
+        if (this.isInGame) {
+            const manager = this.manager;
+            if (manager === undefined) {
+                return;
+            }
+            for (const screen of manager.getScreens()) {
+                screen.exitScreen();
+            }
+            manager.addScreen(new MainMenuScreen(
+                () => manager.addScreen(new RotationGameModeScreen()),
+                () => manager.addScreen(new MessageBoxScreen(
+                    `Are you sure you want to exit ${GAME_NAME}?`,
+                )),
+            ));
+        } else {
+            this.exitScreen();
+        }
     }
 
     /** Port of HighscoreScreen.AddNewEntry: inserts and ranks the new score. */

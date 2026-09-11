@@ -9,7 +9,6 @@ import { Animation } from "./Animation.ts";
 import { Curve, loadCurve } from "./Curve.ts";
 import { IconMap } from "./IconMap.ts";
 import { Countdown, Praising, ScoreBoard, TimeBoard } from "./Hud.ts";
-import { BackGroundRenderer } from "./Background.ts";
 import { SQFont } from "./SQFont.ts";
 import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
 
@@ -33,6 +32,8 @@ export interface RotationGameHost {
     getNumIcons(category: string): Promise<number>;
     /** Draws a 2D icon into the HUD corner (browser canvas overlay). */
     drawIconPreview(image: IconImage, alpha: number): void;
+    /** Starts the game background color animation on the global clock. */
+    startBackgroundAnimation(color: Vec4): void;
 }
 
 export interface GameStatistics {
@@ -68,7 +69,6 @@ export class RotationGame {
     private viewMatrix = Mat4.identity();
 
     private readonly im = new IconMap();
-    private readonly background: BackGroundRenderer;
     private readonly scoreBoard: ScoreBoard;
     private readonly timeBoard: TimeBoard;
     private readonly praising: Praising;
@@ -105,9 +105,8 @@ export class RotationGame {
         averagePuzzleSolvingSpeed: -1,
     };
 
-    public constructor(host: RotationGameHost, background: BackGroundRenderer, categoryIndex: number, categoryName: string) {
+    public constructor(host: RotationGameHost, categoryIndex: number, categoryName: string) {
         this.host = host;
-        this.background = background;
         this.categoryName = categoryName;
         void categoryIndex;
 
@@ -191,7 +190,8 @@ export class RotationGame {
             bgColor.y = 1 - bgColor.x;
             bgColor.z = this.colorRandomizer();
         }
-        this.background.startAnimation(totalGameTime, bgColor);
+        // Animated on the global clock (bgr.StartAnimation in the original).
+        this.host.startBackgroundAnimation(bgColor);
 
         this.currentIconIndex++;
         if (this.currentIconIndex >= this.randomIconIndex.length) {
@@ -259,7 +259,8 @@ export class RotationGame {
                 this.puzzleSolvedCompleteTime = totalGameTime;
                 const duration = totalGameTime - this.puzzleStartedTime;
                 this.puzzleSolvedCompletionDurationAccumulated += duration;
-                this.scoreBoard.setScoreToAdd(1000 + Math.max(0, 9 - duration) * 1000);
+                // The original cast to ulong, truncating the mantissa.
+                this.scoreBoard.setScoreToAdd(1000 + Math.floor(Math.max(0, 9 - duration)) * 1000);
                 this.timeBoard.addTimeBonus(Math.max(0, 5 - duration));
                 this.praising.startPraising(totalGameTime, duration);
                 this.statistics.numberOfPuzzlesSolved++;
@@ -295,7 +296,8 @@ export class RotationGame {
             this.timeBoard.Time += dt;
         }
 
-        this.background.update(totalGameTime);
+        // The background is updated by Game with the global clock; the game
+        // only triggers its color animation via the host.
         this.im.update(totalGameTime, this.camPosition, this.viewMatrix);
         this.praising.update(totalGameTime);
         if (this.countdown.update(dt)) {

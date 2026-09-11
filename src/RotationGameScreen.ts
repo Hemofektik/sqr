@@ -9,7 +9,6 @@ import type { ScreenContext } from "./ScreenManager.ts";
 import { RotationGame } from "./RotationGame.ts";
 import type { RotationGameHost } from "./RotationGame.ts";
 import { SuperQuadricBatch, applyXnaCamera } from "./SuperQuadric.ts";
-import type { BackGroundRenderer } from "./Background.ts";
 import { RotationGameStatisticsScreen, HighscoreScreen } from "./Screens.ts";
 import { Mat4 } from "./XnaMath.ts";
 
@@ -25,7 +24,6 @@ export class RotationGameScreen extends GameScreen {
         categoryIndex: number,
         categoryName: string,
         host: RotationGameHost,
-        background: BackGroundRenderer,
     ) {
         super();
         void gameMode;
@@ -33,7 +31,7 @@ export class RotationGameScreen extends GameScreen {
         this.categoryName = categoryName;
         this.batch = new SuperQuadricBatch(16, 4096, false);
         this.scene.add(this.batch.mesh);
-        this.rotGame = new RotationGame(host, background, categoryIndex, categoryName);
+        this.rotGame = new RotationGame(host, categoryIndex, categoryName);
     }
 
     private totalGameTime = 0;
@@ -89,7 +87,7 @@ export class RotationGameScreen extends GameScreen {
                 }
             }
             this.exitScreen();
-            const highscore = new HighscoreScreen();
+            const highscore = new HighscoreScreen(true);
             highscore.addNewEntry(game.getScore(), "Anonymous");
             this.manager.addScreen(highscore);
         }

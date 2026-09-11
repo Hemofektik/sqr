@@ -209,13 +209,16 @@ export class Game {
             drawIconPreview: () => {
                 // The 2D icon preview overlay is not ported yet.
             },
+            startBackgroundAnimation: (color) => {
+                // Only the grid background is visible during the game.
+                this.background.startAnimation(this.gameTime, new Vec4(1, 1, 1, 1), color);
+            },
         };
         this.screenManager.addScreen(new RotationGameScreen(
             "TimeAttack",
             categoryIndex,
             categoryName,
             host,
-            this.background.gridRenderer,
         ));
     }
 
@@ -318,8 +321,8 @@ export class Game {
 
         if (top instanceof HighscoreScreen) {
             if (down) {
-                if (event.key === "Escape" || event.key === "Enter") {
-                    this.screenManager.popScreen();
+                if (event.key === "Escape" || event.key === "Enter" || event.key === " ") {
+                    top.handleExit();
                 } else if (event.key === "ArrowUp" || event.key === "w" || event.key === "W") {
                     top.handleToggle("up");
                 } else if (event.key === "ArrowDown" || event.key === "s" || event.key === "S") {
