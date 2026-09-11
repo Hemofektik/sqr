@@ -1,0 +1,404 @@
+/**
+ * RotationGame - port of SQR.RotationGame.cs (Time Attack mode).
+ *
+ * The player rotates a 3D icon built from superquadrics until it faces the
+ * camera. Solving puzzles scores points and adds time; the game ends when the
+ * time runs out.
+ */
+import { Animation } from "./Animation.ts";
+import { Curve, loadCurve } from "./Curve.ts";
+import { IconMap } from "./IconMap.ts";
+import { Countdown, Praising, ScoreBoard, TimeBoard } from "./Hud.ts";
+import { BackGroundRenderer } from "./Background.ts";
+import { SQFont } from "./SQFont.ts";
+import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
+
+export const GAME_DURATION = 30;
+const FOV = 1.3;
+const PUZZLE_SOLVED_COMPLETE_ANIMATION_TIME = 1.5;
+const ERROR_ANGLE = 0.0025;
+
+export interface IconImage {
+    width: number;
+    height: number;
+    /** RGBA pixel data. */
+    data: Uint8ClampedArray;
+}
+
+export interface RotationGameHost {
+    /** The superquadric font used for HUD text. */
+    font: SQFont;
+    /** Loads an icon image by category and index (browser texture loading). */
+    loadIcon(category: string, index: number): Promise<IconImage>;
+    getNumIcons(category: string): Promise<number>;
+    /** Draws a 2D icon into the HUD corner (browser canvas overlay). */
+    drawIconPreview(image: IconImage, alpha: number): void;
+}
+
+export interface GameStatistics {
+    score: number;
+    numberOfPuzzlesSolved: number;
+    timeSpendInThisGame: number;
+    averagePuzzleSolvingSpeed: number;
+}
+
+/** Deterministic RNG (the original used System.Random). */
+function makeRandom(seed: number): () => number {
+    let state = seed >>> 0;
+    return () => {
+        state = (state * 1664525 + 1013904223) >>> 0;
+        return state / 0x100000000;
+    };
+}
+
+function isColorGreyish(color: Vec4): boolean {
+    const redGreenDelta = color.x - color.y;
+    const greenBlueDelta = color.y - color.z;
+    return redGreenDelta * redGreenDelta < 0.1 && greenBlueDelta * greenBlueDelta < 0.1;
+}
+
+export class RotationGame {
+    private readonly categoryName: string;
+    private readonly host: RotationGameHost;
+
+    private camPitch = 0;
+    private camYaw = 0;
+    private camRadius = 20;
+    private camPosition = new Vec3(0, 0, 20);
+    private viewMatrix = Mat4.identity();
+
+    private readonly im = new IconMap();
+    private readonly background: BackGroundRenderer;
+    private readonly scoreBoard: ScoreBoard;
+    private readonly timeBoard: TimeBoard;
+    private readonly praising: Praising;
+    private readonly countdown: Countdown;
+
+    private randomIconIndex: number[] = [];
+    private currentIconIndex = 0;
+    private numIcons = 0;
+
+    private iconImage: IconImage | undefined;
+
+    private readonly camFuzzingAnimation = new Animation(1);
+    private camFuzzingPitch = 0;
+    private camFuzzingYaw = 0;
+
+    private puzzleSolved = false;
+    private puzzleSolvedCompleteHenceDisableLogic = false;
+    private puzzleSolvedCompleteTime = -20;
+    private puzzleStartedTime = 0;
+    private puzzleGameStartTime = -1;
+    private puzzleSolvedCompletionDurationAccumulated = 0;
+
+    private readonly timeUpCurve = loadCurve("bouncein");
+    private readonly gameOverAnimation = new Animation(3);
+    private gameOver = false;
+
+    private readonly colorRandomizer = makeRandom(1234567);
+    private readonly rnd = makeRandom(Date.now() & 0x7fffffff);
+
+    private statistics: GameStatistics = {
+        score: 0,
+        numberOfPuzzlesSolved: 0,
+        timeSpendInThisGame: -1,
+        averagePuzzleSolvingSpeed: -1,
+    };
+
+    public constructor(host: RotationGameHost, background: BackGroundRenderer, categoryIndex: number, categoryName: string) {
+        this.host = host;
+        this.background = background;
+        this.categoryName = categoryName;
+        void categoryIndex;
+
+        this.scoreBoard = new ScoreBoard(host.font);
+        this.timeBoard = new TimeBoard(host.font);
+        this.praising = new Praising(host.font);
+        this.countdown = new Countdown(host.font, 3.5);
+
+        // Port of camFuzzingRotationCurve (0,0 -> 0.2,0 -> 1,1 smooth).
+        const camFuzzingRotationCurve = new Curve();
+        camFuzzingRotationCurve.addKey(0, 0, 0, 0);
+        camFuzzingRotationCurve.addKey(0.2, 0, 0, 0);
+        camFuzzingRotationCurve.addKey(1, 1, 0, 0);
+        this.camFuzzingAnimation.timeCurve = camFuzzingRotationCurve;
+
+        void host.getNumIcons(categoryName).then((numIcons) => {
+            this.numIcons = numIcons;
+            this.createRandomIconList();
+        });
+    }
+
+    public getScore(): number {
+        return this.scoreBoard.getScore();
+    }
+
+    public getStatistics(): GameStatistics {
+        return this.statistics;
+    }
+
+    public isGameOver(): boolean {
+        return this.gameOver && !this.gameOverAnimation.isRunning;
+    }
+
+    public isGameOverAnimationRunning(): boolean {
+        return this.gameOverAnimation.isRunning;
+    }
+
+    public getGameOverProgress(): number {
+        return this.gameOverAnimation.progress;
+    }
+
+    private get timeIsStoppedInternally(): boolean {
+        return this.countdown.TimeLeft > 0 || this.camFuzzingAnimation.isRunning;
+    }
+
+    /** Port of CreateRandomIconList. */
+    private createRandomIconList(): void {
+        const copy: number[] = [];
+        for (let n = 0; n < this.numIcons; n++) {
+            copy.push(n);
+        }
+        this.randomIconIndex = [];
+        for (let n = 0; n < this.numIcons; n++) {
+            const index = Math.floor(this.rnd() * copy.length);
+            const picked = copy.splice(index, 1)[0];
+            if (picked !== undefined) {
+                this.randomIconIndex.push(picked);
+            }
+        }
+    }
+
+    /** Port of LoadNewIcon (async because textures load in the browser). */
+    private async loadNewIcon(totalGameTime: number): Promise<void> {
+        const index = this.randomIconIndex[this.currentIconIndex];
+        if (index === undefined) {
+            return;
+        }
+        this.iconImage = await this.host.loadIcon(this.categoryName, index);
+
+        const mainColor = this.im.init(
+            this.iconImage.width,
+            this.iconImage.height,
+            this.iconImage.data,
+            totalGameTime,
+        );
+
+        // Set the background to a contrasting color for best icon contrast.
+        const bgColor = new Vec4(1 - mainColor.x, 1 - mainColor.y, 1 - mainColor.z, 1);
+        if (isColorGreyish(mainColor)) {
+            bgColor.x = this.colorRandomizer();
+            bgColor.y = 1 - bgColor.x;
+            bgColor.z = this.colorRandomizer();
+        }
+        this.background.startAnimation(totalGameTime, bgColor);
+
+        this.currentIconIndex++;
+        if (this.currentIconIndex >= this.randomIconIndex.length) {
+            this.currentIconIndex = 0;
+            this.createRandomIconList();
+        }
+    }
+
+    /** Port of StartNewIconRiddle. */
+    private startNewIconRiddle(totalGameTime: number): void {
+        this.puzzleSolved = false;
+        this.puzzleSolvedCompleteHenceDisableLogic = false;
+
+        this.camFuzzingYaw = this.rnd() * Math.PI * 2 - Math.PI;
+        this.camFuzzingPitch = this.rnd() * Math.PI - Math.PI * 0.5;
+
+        // Minimum distance to origin should be safe.
+        this.camFuzzingYaw += Math.sign(this.camFuzzingYaw) * 0.5;
+        this.camFuzzingPitch += Math.sign(this.camFuzzingPitch) * 0.8;
+
+        this.camFuzzingAnimation.start(totalGameTime);
+        void this.loadNewIcon(totalGameTime);
+    }
+
+    private isPuzzleCompleteAnimPlaying(totalGameTime: number): boolean {
+        return totalGameTime - this.puzzleSolvedCompleteTime <= PUZZLE_SOLVED_COMPLETE_ANIMATION_TIME;
+    }
+
+    /** Port of RotationGame.Update. */
+    public update(dt: number, totalGameTime: number): void {
+        if (this.countdown.TimeLeft > 0) {
+            this.puzzleGameStartTime = totalGameTime;
+            this.timeBoard.TimeStart = totalGameTime;
+            this.timeBoard.Time = GAME_DURATION;
+        }
+
+        if (this.iconImage === undefined) {
+            this.startNewIconRiddle(totalGameTime);
+        }
+
+        if (this.camFuzzingAnimation.isRunning && dt > 0) {
+            this.camFuzzingAnimation.update(totalGameTime);
+            this.camPitch += (this.camFuzzingPitch - this.camPitch) * this.camFuzzingAnimation.progress;
+            this.camYaw += (this.camFuzzingYaw - this.camYaw) * this.camFuzzingAnimation.progress;
+        }
+
+        if (this.gameOver) {
+            this.camPitch += Math.sign(this.camFuzzingPitch) * dt * 0.2;
+            this.camYaw += Math.sign(this.camFuzzingYaw) * dt * 0.2;
+        }
+
+        if (this.puzzleSolvedCompleteHenceDisableLogic && !this.isPuzzleCompleteAnimPlaying(totalGameTime)) {
+            this.startNewIconRiddle(totalGameTime);
+        }
+
+        const allowInput = !this.puzzleSolvedCompleteHenceDisableLogic && !this.gameOver && !this.timeIsStoppedInternally;
+        if (allowInput) {
+            const camYawAbs = Math.abs(this.camYaw);
+            const camPitchAbs = Math.abs(this.camPitch);
+            const distanceSQR = camYawAbs * camYawAbs + camPitchAbs * camPitchAbs;
+
+            if (this.camYaw === 0 && this.camPitch === 0) {
+                this.im.startPuzzleCompleteAnimation(totalGameTime);
+                this.puzzleSolvedCompleteHenceDisableLogic = true;
+                this.puzzleSolvedCompleteTime = totalGameTime;
+                const duration = totalGameTime - this.puzzleStartedTime;
+                this.puzzleSolvedCompletionDurationAccumulated += duration;
+                this.scoreBoard.setScoreToAdd(1000 + Math.max(0, 9 - duration) * 1000);
+                this.timeBoard.addTimeBonus(Math.max(0, 5 - duration));
+                this.praising.startPraising(totalGameTime, duration);
+                this.statistics.numberOfPuzzlesSolved++;
+            }
+
+            if (!this.puzzleSolvedCompleteHenceDisableLogic && distanceSQR < ERROR_ANGLE) {
+                this.puzzleSolved = true;
+            }
+
+            // Puzzle solved: smoothly align the camera to the front.
+            if (this.puzzleSolved) {
+                const smoothAlignSpeed = Math.min(1, 30 * dt);
+                this.camYaw -= this.camYaw * smoothAlignSpeed;
+                this.camPitch -= this.camPitch * smoothAlignSpeed;
+                if (camYawAbs < 0.00005 && camPitchAbs < 0.00005) {
+                    this.camYaw = 0;
+                    this.camPitch = 0;
+                }
+            }
+        }
+
+        this.camRadius += ((this.iconImage?.width ?? 16) * 1.25 - this.camRadius) * dt * 10;
+
+        const camRotation = Mat4.createFromYawPitchRoll(this.camYaw, this.camPitch, 0);
+        this.camPosition = Vec3.scale(camRotation.backward(), this.camRadius);
+        this.viewMatrix = Mat4.createLookAt(
+            this.camPosition,
+            Vec3.add(this.camPosition, camRotation.forward()),
+            camRotation.up(),
+        );
+
+        if (this.timeIsStoppedInternally || this.isPuzzleCompleteAnimPlaying(totalGameTime)) {
+            this.timeBoard.Time += dt;
+        }
+
+        this.background.update(totalGameTime);
+        this.im.update(totalGameTime, this.camPosition, this.viewMatrix);
+        this.praising.update(totalGameTime);
+        if (this.countdown.update(dt)) {
+            this.puzzleStartedTime = totalGameTime;
+        }
+
+        const isPuzzleCompleteAnimPlaying = this.isPuzzleCompleteAnimPlaying(totalGameTime);
+        if (isPuzzleCompleteAnimPlaying || this.camFuzzingAnimation.isRunning) {
+            this.puzzleStartedTime = totalGameTime;
+        }
+
+        this.timeBoard.update(totalGameTime, dt, !isPuzzleCompleteAnimPlaying);
+        this.scoreBoard.update(dt, !isPuzzleCompleteAnimPlaying);
+
+        if (this.gameOverAnimation.isRunning) {
+            this.gameOverAnimation.update(totalGameTime);
+        }
+
+        if (this.timeBoard.TimeLeft <= 0 && !this.gameOver) {
+            this.beginGameOver(totalGameTime);
+        }
+    }
+
+    private beginGameOver(totalGameTime: number): void {
+        this.gameOver = true;
+        this.gameOverAnimation.start(totalGameTime);
+        this.statistics.score = this.scoreBoard.getScore();
+        this.statistics.timeSpendInThisGame = totalGameTime - this.puzzleGameStartTime;
+        this.statistics.averagePuzzleSolvingSpeed =
+            this.puzzleSolvedCompletionDurationAccumulated / Math.max(1, this.statistics.numberOfPuzzlesSolved);
+    }
+
+    /** Rotation input (port of the stick handling with deadzone + falloff). */
+    public addRotationInput(yawDelta: number, pitchDelta: number, dt: number): void {
+        if (this.puzzleSolved) {
+            return;
+        }
+        const rotationSpeed = 5 * dt;
+        const camYawAbs = Math.abs(this.camYaw);
+        const camPitchAbs = Math.abs(this.camPitch);
+        const distanceSQR = camYawAbs * camYawAbs + camPitchAbs * camPitchAbs;
+        const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
+
+        this.camYaw += yawDelta * rotationSpeed * factor;
+        this.camPitch += pitchDelta * rotationSpeed * factor;
+
+        if (this.camYaw > Math.PI) this.camYaw -= Math.PI * 2;
+        if (this.camYaw < -Math.PI) this.camYaw += Math.PI * 2;
+        if (this.camPitch > Math.PI) this.camPitch -= Math.PI * 2;
+        if (this.camPitch < -Math.PI) this.camPitch += Math.PI * 2;
+    }
+
+    // --- rendering accessors -------------------------------------------------
+
+    public getCamPosition(): Vec3 {
+        return this.camPosition;
+    }
+
+    public getViewMatrix(): Mat4 {
+        return this.viewMatrix;
+    }
+
+    public getIconMap(): IconMap {
+        return this.im;
+    }
+
+    public getIconImage(): IconImage | undefined {
+        return this.iconImage;
+    }
+
+    public getCamFuzzingProgress(): number {
+        return this.camFuzzingAnimation.progress;
+    }
+
+    public isCamFuzzing(): boolean {
+        return this.camFuzzingAnimation.isRunning;
+    }
+
+    public getHudVisibility(): number {
+        return Math.max(0, 1 - this.gameOverAnimation.progress * 3);
+    }
+
+    public getCountdown(): Countdown {
+        return this.countdown;
+    }
+
+    public getScoreBoard(): ScoreBoard {
+        return this.scoreBoard;
+    }
+
+    public getTimeBoard(): TimeBoard {
+        return this.timeBoard;
+    }
+
+    public getPraising(): Praising {
+        return this.praising;
+    }
+
+    public getTimeUpBounce(progress: number): number {
+        return 1 - this.timeUpCurve.evaluate(progress * 3);
+    }
+
+    public getFov(): number {
+        return FOV;
+    }
+}

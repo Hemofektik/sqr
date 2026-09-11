@@ -5,6 +5,18 @@ interface CurveKey {
     tangentOut: number;
 }
 
+import curvesJson from "./curves.json";
+
+/** Loads a named curve from the converted XNA curve assets (src/curves.json). */
+export function loadCurve(name: string): Curve {
+    const keys = curvesJson[name as keyof typeof curvesJson];
+    const curve = new Curve();
+    for (const key of keys ?? []) {
+        curve.addKey(key.position, key.value, key.tangentIn, key.tangentOut);
+    }
+    return curve;
+}
+
 export class Curve {
     public preLoop: "constant" = "constant";
     public postLoop: "constant" = "constant";

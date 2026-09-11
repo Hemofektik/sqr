@@ -102,9 +102,11 @@ export class RotationGameModeScreen extends MenuScreen {
     public override readonly kind = "gameMode" as const;
     private categoryIndex = 0;
     private firstTimeStarted = true;
+    private readonly onStartGame: ((categoryIndex: number, categoryName: string) => void) | undefined;
 
-    public constructor() {
+    public constructor(onStartGame?: (categoryIndex: number, categoryName: string) => void) {
         super("Game Mode");
+        this.onStartGame = onStartGame;
         this.selectedEntry = 1;
         this.menuEntries = [
             { text: "", selected: () => this.switchCategory() },
@@ -134,6 +136,12 @@ export class RotationGameModeScreen extends MenuScreen {
     }
 
     private startGame(gameMode: GameModeValue): void {
+        if (gameMode === GameMode.TimeAttack) {
+            const categories = this.manager?.context.getCategories() ?? [];
+            const categoryName = categories[this.categoryIndex] ?? "";
+            this.onStartGame?.(this.categoryIndex, categoryName);
+            return;
+        }
         this.manager?.context.showToast(`${GAME_MODE_NAMES[gameMode]} is not ported yet.`);
     }
 
@@ -158,7 +166,7 @@ export class RotationGameModeScreen extends MenuScreen {
         // Unlockable icons info (RotationGameModeScreen.Draw).
         const categories = this.manager?.context.getCategories() ?? [];
         const category = categories[this.categoryIndex] ?? "";
-        const numIcons = this.manager?.context.getNumIcons(category) ?? 0;
+        const numIcons = this.cachedNumIcons(category);
         const unlocked = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
         const numUnlockableIcons = Math.max(0, numIcons - unlocked);
         if (numUnlockableIcons > 0) {
@@ -374,6 +382,8 @@ export class HighscoreScreen extends GameScreen {
     private gameMode: GameModeValue = GameMode.TimeAttack;
     private categoryIndex = 0;
     private isToggable = true;
+    private entries: { place: number; score: number; gamerTag: string }[] = [];
+    private lastEntryIndex = -1;
 
     private static readonly NUM_GAME_MODES = 2; // excludes FreePlay
 
@@ -394,6 +404,18 @@ export class HighscoreScreen extends GameScreen {
         super();
         this.transitionOnTime = 0.5;
         this.transitionOffTime = 0.5;
+        this.entries = HighscoreScreen.ENTRIES.map((entry) => ({ ...entry }));
+    }
+
+    /** Port of HighscoreScreen.AddNewEntry: inserts and ranks the new score. */
+    public addNewEntry(score: number, gamerTag: string): void {
+        this.entries.push({ place: -1, score, gamerTag });
+        this.entries.sort((a, b) => b.score - a.score);
+        this.entries = this.entries.slice(0, 10);
+        this.entries.forEach((entry, index) => {
+            entry.place = index + 1;
+        });
+        this.lastEntryIndex = this.entries.findIndex((entry) => entry.score === score && entry.gamerTag === gamerTag);
     }
 
     public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
@@ -404,7 +426,6 @@ export class HighscoreScreen extends GameScreen {
         }
     }
 
-    /** Port of HighscoreScreen.HandleInput (toggling). */
     public handleToggle(action: "up" | "down" | "left" | "right"): void {
         if (!this.isToggable) {
             return;
@@ -422,7 +443,7 @@ export class HighscoreScreen extends GameScreen {
         }
     }
 
-    public override draw(_ctx: ScreenContext): void {
+    public override draw(ctx: ScreenContext): void {
         const font = this.manager?.context.font;
         if (font === undefined) {
             return;
@@ -457,8 +478,8 @@ export class HighscoreScreen extends GameScreen {
             const viewPosition = new Vec3(0, 0, 1);
             const zDepth = 80 - this.transitionPosition * 120;
 
-            for (let n = 0; n < HighscoreScreen.ENTRIES.length; n++) {
-                const e = HighscoreScreen.ENTRIES[n];
+            for (let n = 0; n < this.entries.length; n++) {
+                const e = this.entries[n];
                 if (e === undefined) {
                     continue;
                 }
@@ -469,25 +490,33 @@ export class HighscoreScreen extends GameScreen {
                 const fontHeightScale = 0.14 * zDepthScale;
                 const placeWidth = font.getTextWidth(placeStr) * fontWidthScale;
                 const scoreWidth = font.getTextWidth(scoreStr) * fontWidthScale;
+
+                // The new entry pulses (HighscoreScreen.Draw).
+                let entryColor = fontColor;
+                if (this.lastEntryIndex === n) {
+                    const pulse = Math.sin(ctx.gameTime * 4) * 0.5 + 0.5;
+                    entryColor = Vec4.lerp(new Vec4(1, 0.8, 0.4, fontColor.w), fontColor, pulse);
+                }
+
                 font.addText(
                     placeStr,
                     new Vec3(-0.85 * zDepthScale - placeWidth, 0.3 - fontHeightScale * n, -1).multiplyScalar(zDepth),
                     1,
-                    fontColor,
+                    entryColor,
                     fontEmissiveColor,
                 );
                 font.addText(
                     scoreStr,
                     new Vec3(-0.25 * zDepthScale - scoreWidth, 0.3 - fontHeightScale * n, -1).multiplyScalar(zDepth),
                     1,
-                    fontColor,
+                    entryColor,
                     fontEmissiveColor,
                 );
                 font.addText(
                     ` - ${e.gamerTag}`,
                     new Vec3(-0.146, 0.3 - fontHeightScale * n, -1).multiplyScalar(zDepth),
                     1,
-                    fontColor,
+                    entryColor,
                     fontEmissiveColor,
                 );
             }
@@ -548,7 +577,7 @@ export class GalleryScreen extends GameScreen {
         const fontColor = new Vec4(1, 1, 1, 1 - this.transitionPosition);
         const categories = this.manager?.context.getCategories() ?? [];
         const category = categories[this.categoryIndex] ?? "";
-        const numIcons = this.manager?.context.getNumIcons(category) ?? 0;
+        const numIcons = this.cachedNumIcons(category);
         const unlocked = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
 
         // Title (GalleryScreen.Draw): perspective projection with zDepth fade.
@@ -661,5 +690,135 @@ export class MessageBoxScreen extends GameScreen {
         font.addText(this.message, new Vec3(-0.5 * zDepth, 0.1 * zDepth, -1 * zDepth), 0.9, fontColor);
         setupFontCamera(font, new Vec3(0, 0, 1));
         font.flush(true);
+    }
+}
+
+/** Port of RotationGameStatisticsScreen. */
+export class RotationGameStatisticsScreen extends GameScreen {
+    public readonly kind = "messageBox" as const;
+    private readonly gameModeName: string;
+    private readonly categoryIndex: number;
+    private readonly stats: {
+        score: number;
+        numberOfPuzzlesSolved: number;
+        numberOfIconsUnlocked: number;
+        numberOfIconsUnlockable: number;
+        averagePuzzleSolvingSpeed: number;
+        timeSpendInThisGame: number;
+    };
+
+    public constructor(
+        gameModeName: string,
+        categoryIndex: number,
+        stats: {
+            score: number;
+            numberOfPuzzlesSolved: number;
+            numberOfIconsUnlocked: number;
+            numberOfIconsUnlockable: number;
+            averagePuzzleSolvingSpeed: number;
+            timeSpendInThisGame: number;
+        },
+    ) {
+        super();
+        this.gameModeName = gameModeName;
+        this.categoryIndex = categoryIndex;
+        this.stats = stats;
+        this.transitionOnTime = 0.5;
+        this.transitionOffTime = 0.5;
+    }
+
+    public override draw(_ctx: ScreenContext): void {
+        const font = this.manager?.context.font;
+        if (font === undefined) {
+            return;
+        }
+
+        const theta = (1 - this.transitionPosition) * (Math.PI - Math.PI * 0.25);
+        const phi = -0.5;
+        SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
+
+        const fontEmissiveColor = new Vec4(0, 0, 0, 1 - this.transitionPosition);
+
+        // Title.
+        {
+            const fontColor = new Vec4(1, 0.8, 0.4, 1 - this.transitionPosition);
+            const viewPosition = new Vec3(0, 0, 1);
+            const zDepth = 30 - this.transitionPosition * 45;
+            const zDepthScale = 30 / zDepth;
+            font.addText(
+                "Your Performance",
+                new Vec3(-1.2 * zDepthScale, 0.5 * zDepthScale, -1).multiplyScalar(zDepth),
+                1,
+                fontColor,
+                fontEmissiveColor,
+            );
+            setupFontCameraPerspective(font, viewPosition);
+            font.flush(true);
+        }
+
+        // Statistics.
+        {
+            const fontColor = new Vec4(1, 1, 1, 1 - this.transitionPosition);
+            const viewPosition = new Vec3(0, 0, 1);
+            const zDepth = 70 - this.transitionPosition * 120;
+
+            const showIU = this.stats.numberOfIconsUnlockable > 0;
+            const datumName = [
+                "Score",
+                "Puzzles Solved",
+                showIU ? "Icons Unlocked" : "",
+                "Average Puzzle Time",
+                "Game Duration",
+            ];
+            const datumEntry = [
+                String(this.stats.score),
+                String(this.stats.numberOfPuzzlesSolved),
+                `${this.stats.numberOfIconsUnlocked}/${this.stats.numberOfIconsUnlockable}`,
+                this.stats.averagePuzzleSolvingSpeed.toFixed(2).padStart(5, "0"),
+                this.stats.timeSpendInThisGame.toFixed(2).padStart(5, "0"),
+            ];
+
+            for (let n = 0; n < datumName.length; n++) {
+                const name = datumName[n];
+                const entry = datumEntry[n];
+                if (name === undefined || name === "" || entry === undefined) {
+                    continue;
+                }
+                const zDepthScale = 60 / zDepth;
+                const fontWidthScale = 0.015 * zDepthScale;
+                const fontHeightScale = 0.18 * zDepthScale;
+                const datumNameWidth = font.getTextWidth(name) * fontWidthScale;
+                font.addText(
+                    name,
+                    new Vec3(0.05 * zDepthScale - datumNameWidth, 0.3 - fontHeightScale * n, -1).multiplyScalar(zDepth),
+                    1,
+                    fontColor,
+                    fontEmissiveColor,
+                );
+                font.addText(
+                    ` : ${entry}`,
+                    new Vec3(0.2, 0.3 - fontHeightScale * n, -1).multiplyScalar(zDepth),
+                    1,
+                    fontColor,
+                    fontEmissiveColor,
+                );
+            }
+            setupFontCameraPerspective(font, viewPosition);
+            font.flush(true);
+        }
+
+        // Game mode / category label.
+        {
+            const fadeValue = 1 - this.transitionPosition;
+            const fontColor = new Vec4(1, 1, 1, fadeValue);
+            const emissive = new Vec4(0, 0, 0, fadeValue);
+            const categories = this.manager?.context.getCategories() ?? [];
+            const category = categories[this.categoryIndex] ?? "";
+            const zDepth = 60;
+            font.addText(this.gameModeName, new Vec3(-0.35, -1.2, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
+            font.addText(category, new Vec3(-0.35, -1.3, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
+            setupFontCamera(font, new Vec3(0, 0, 1));
+            font.flush(fadeValue < 1);
+        }
     }
 }

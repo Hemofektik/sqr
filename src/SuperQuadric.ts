@@ -110,6 +110,8 @@ export class SuperQuadric {
     public sqParams = new Vec4(1, 1, -10, 1);
     public colorDiffuse = new Vec4(1, 1, 1, 1);
     public colorEmissive = new Vec4(0, 0, 0, 0);
+    /** Optional keyframe animation (IconMap/Praising dispersion sequences). */
+    public praiseAnimation: { apply(target: SuperQuadric, time: number): void } | undefined;
 
     public static lightDir = new Vec3(0.5, 1, -1);
     public static skyColor = new Vec4(0, 0.1, 0.3, 1);

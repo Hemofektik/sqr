@@ -15,9 +15,11 @@ export type ScreenKind =
     | "credits"
     | "gallery"
     | "help"
-    | "messageBox";
+    | "messageBox"
+    | "game";
 
 import type { SQFont } from "./SQFont.ts";
+import type { Camera, Scene } from "three";
 
 export interface ScreenContext {
     /** Total game time in seconds. */
@@ -29,13 +31,18 @@ export interface ScreenContext {
     /** Icon category names, e.g. ["Common Flags", "Food", "Mix"]. */
     getCategories(): string[];
     /** Number of icons in a category. */
-    getNumIcons(category: string): number;
+    getNumIcons(category: string): Promise<number>;
     /** Number of icons unlocked in a category. */
     getNumIconsUnlocked(categoryIndex: number): number;
     /** Show a transient toast message. */
     showToast(message: string): void;
     /** The superquadric font used for all screen text. */
     font: SQFont;
+    /** Letterboxed viewport in CSS pixels. */
+    viewportWidth: number;
+    viewportHeight: number;
+    /** Renders a 3D scene into the given depth band (vpMain style). */
+    renderScene(scene: Scene, camera: Camera, minDepth: number, maxDepth: number): void;
 }
 
 export abstract class GameScreen {
@@ -103,6 +110,11 @@ export abstract class GameScreen {
     }
 
     public abstract draw(ctx: ScreenContext): void;
+
+    /** Synchronously returns a previously loaded icon count (0 if not yet loaded). */
+    protected cachedNumIcons(category: string): number {
+        return this.manager?.getCachedNumIcons(category) ?? 0;
+    }
 }
 
 export class ScreenManager {
@@ -134,6 +146,18 @@ export class ScreenManager {
             top.exitScreen();
         }
     }
+
+    /** Returns the last resolved icon count for a category (0 if pending). */
+    public getCachedNumIcons(category: string): number {
+        return this.numIconsCache.get(category) ?? 0;
+    }
+
+    /** Stores a resolved icon count for synchronous access by screens. */
+    public cacheNumIcons(category: string, count: number): void {
+        this.numIconsCache.set(category, count);
+    }
+
+    private readonly numIconsCache = new Map<string, number>();
 
     public managesScreen(kind: ScreenKind): boolean {
         return this.screens.some((s) => s.kind === kind);

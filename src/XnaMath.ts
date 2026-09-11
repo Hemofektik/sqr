@@ -99,6 +99,14 @@ export class Vec3 {
     public static normalize(v: Vec3): Vec3 {
         return v.clone().normalize();
     }
+
+    public static lerp(a: Vec3, b: Vec3, t: number): Vec3 {
+        return new Vec3(
+            a.x + (b.x - a.x) * t,
+            a.y + (b.y - a.y) * t,
+            a.z + (b.z - a.z) * t,
+        );
+    }
 }
 
 export class Vec4 {
@@ -207,6 +215,25 @@ export class Mat4 {
         return new Vec3(-(e[8] ?? 0), -(e[9] ?? 0), -(e[10] ?? 0));
     }
 
+    public up(): Vec3 {
+        const e = this.elements;
+        return new Vec3(e[4] ?? 0, e[5] ?? 0, e[6] ?? 0);
+    }
+
+    public backward(): Vec3 {
+        return new Vec3(this.elements[8] ?? 0, this.elements[9] ?? 0, this.elements[10] ?? 0);
+    }
+
+    public static lerp(a: Mat4, b: Mat4, t: number): Mat4 {
+        const ae = a.elements;
+        const be = b.elements;
+        const r = new Float32Array(16);
+        for (let i = 0; i < 16; i++) {
+            r[i] = (ae[i] ?? 0) + ((be[i] ?? 0) - (ae[i] ?? 0)) * t;
+        }
+        return new Mat4(r);
+    }
+
     public static createLookAt(cameraPosition: Vec3, cameraTarget: Vec3, cameraUpVector: Vec3): Mat4 {
         const z = Vec3.sub(cameraPosition, cameraTarget).normalize();
         const x = Vec3.cross(cameraUpVector, z).normalize();
@@ -258,6 +285,24 @@ export class Mat4 {
         e[13] = 0;
         e[14] = (nearPlaneDistance * farPlaneDistance) / (nearPlaneDistance - farPlaneDistance);
         e[15] = 0;
+        return m;
+    }
+
+    public static createPerspectiveFieldOfView(
+        fov: number,
+        aspectRatio: number,
+        nearPlaneDistance: number,
+        farPlaneDistance: number,
+    ): Mat4 {
+        const yScale = 1 / Math.tan(fov * 0.5);
+        const xScale = yScale / aspectRatio;
+        const m = new Mat4();
+        const e = m.elements;
+        e[0] = xScale;
+        e[5] = yScale;
+        e[10] = farPlaneDistance / (nearPlaneDistance - farPlaneDistance);
+        e[11] = -1;
+        e[14] = (nearPlaneDistance * farPlaneDistance) / (nearPlaneDistance - farPlaneDistance);
         return m;
     }
 

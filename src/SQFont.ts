@@ -194,6 +194,35 @@ export class SQFont {
 
     private renderCallback: ((scene: Scene, camera: Camera) => void) | undefined;
 
+    /**
+     * Returns and clears the queued text quads without rendering (used by
+     * Praising, which animates the quads itself before drawing).
+     */
+    public takeQueuedQuads(): SuperQuadric[] {
+        for (const batch of this.texts) {
+            this.getText(batch.text, batch.pos, batch.scale, batch.diffuseColor, batch.emissiveColor);
+        }
+        this.texts.length = 0;
+        const quads = this.sqs.slice();
+        this.sqs.length = 0;
+        return quads;
+    }
+
+    /** Draws a custom superquadric list with an explicit camera (Praising). */
+    public drawSuperQuadrics(
+        list: SuperQuadric[],
+        viewPosition: Vec3,
+        view: Mat4,
+        proj: Mat4,
+        alphaBlend: boolean,
+    ): void {
+        this.batch.setBlending(alphaBlend);
+        this.batch.setInstances(list);
+        applyXnaCamera(this.camera, view, proj);
+        this.batch.setGlobals(viewPosition);
+        this.renderCallback?.(this.scene, this.camera);
+    }
+
     /** Sets the ortho camera used for the next flush (per-screen setup). */
     public applyCamera(viewPosition: Vec3, view: Mat4, proj: Mat4): void {
         this.cameraPosition = viewPosition.clone();
