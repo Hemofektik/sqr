@@ -606,6 +606,13 @@ export class GalleryScreen extends GameScreen {
         const numIcons = this.cachedNumIcons(category);
         const unlocked = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
 
+        // Port of GalleryScreen.Draw: rotate the light while transitioning.
+        {
+            const theta = (1 - this.transitionPosition) * (Math.PI - Math.PI * 0.25);
+            const phi = -0.5;
+            SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
+        }
+
         // Title (GalleryScreen.Draw): perspective projection with zDepth fade.
         const zDepth = 30 - this.transitionPosition * 45;
         const zDepthScale = 30 / zDepth;
@@ -711,9 +718,39 @@ export class MessageBoxScreen extends GameScreen {
             return;
         }
         const fadeValue = 1 - this.transitionPosition;
-        const fontColor = new Vec4(1, 1, 1, fadeValue);
+
+        // Port of MessageBoxScreen.Draw: animate light dir for specular.
+        {
+            const fadeValueLight = Math.max(fadeValue * 2 - 1, 0);
+            const theta = (1 - fadeValueLight) * (Math.PI * 2 - Math.PI * 0.5);
+            const phi = fadeValueLight * 3;
+            SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
+        }
+
+        const fontColor = new Vec4(1, 1, 1, 1);
+        const acceptColor = new Vec4(0, 0.5, 0, 1);
+        const cancelColor = new Vec4(0.5, 0, 0, 1);
+
         const zDepth = 60;
-        font.addText(this.message, new Vec3(-0.5 * zDepth, 0.1 * zDepth, -1 * zDepth), 0.9, fontColor);
+        const yPos = -1.6 + Math.pow(fadeValue, 0.2);
+        font.addText(
+            this.message,
+            new Vec3(-1.25, yPos, -1).multiplyScalar(zDepth),
+            0.8,
+            fontColor,
+        );
+        font.addText(
+            "Yes",
+            new Vec3(-1.13, yPos - 0.12, -1).multiplyScalar(zDepth),
+            0.8,
+            acceptColor,
+        );
+        font.addText(
+            "No",
+            new Vec3(-0.3, yPos - 0.12, -1).multiplyScalar(zDepth),
+            0.8,
+            cancelColor,
+        );
         setupFontCamera(font, new Vec3(0, 0, 1));
         font.flush(true);
     }

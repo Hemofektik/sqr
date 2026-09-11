@@ -9,8 +9,9 @@ import type { ScreenContext } from "./ScreenManager.ts";
 import { RotationGame } from "./RotationGame.ts";
 import type { RotationGameHost } from "./RotationGame.ts";
 import { SuperQuadricBatch, applyXnaCamera } from "./SuperQuadric.ts";
+import { SuperQuadric } from "./SuperQuadric.ts";
 import { RotationGameStatisticsScreen, HighscoreScreen } from "./Screens.ts";
-import { Mat4 } from "./XnaMath.ts";
+import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
 
 export class RotationGameScreen extends GameScreen {
     public readonly kind = "game" as const;
@@ -121,6 +122,40 @@ export class RotationGameScreen extends GameScreen {
             game.getTimeBoard().draw(hudVisibility);
             game.getPraising().draw(hudVisibility);
             game.getCountdown().draw(hudVisibility);
+        }
+
+        // Port of the game-over text block in RotationGame.Render.
+        if (game.isGameOverAnimationRunning()) {
+            const font = ctx.font;
+            const textAlpha = Math.min(1, game.getGameOverProgress() * 2);
+            const fontColor = new Vec4(1, 0, 0, textAlpha);
+            const gameOverText = "Time up!";
+            const targetX = -0.7;
+
+            const viewPosition = new Vec3(0, 0, 1);
+            {
+                const theta = 0.5;
+                const phi = 2.5;
+                SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
+            }
+
+            // bounceInValue = 1 - timeUpCurve.Evaluate(progress * 3);
+            // bounceOutValue = pow((max(2, progress*3) - 2) * 2, 3).
+            const p = game.getGameOverProgress() * 3;
+            const bounceInValue = game.getTimeUpBounce(game.getGameOverProgress());
+            const bounceOutValue = Math.pow((Math.max(2, p) - 2) * 2, 3);
+
+            const zDepth = 8 + gameOverText.length * 1.5;
+            font.addText(
+                gameOverText,
+                new Vec3(targetX + bounceInValue * 3 - bounceOutValue * 3, -0.3, -1).multiplyScalar(zDepth),
+                1,
+                fontColor,
+            );
+            const viewMatrix = Mat4.createLookAt(viewPosition, new Vec3(0, 0, 0), Vec3.up);
+            const projMatrix = Mat4.createPerspectiveOffCenter(-1.6, 1.6, -0.9, 0.9, 1, 550);
+            font.applyCamera(viewPosition, viewMatrix, projMatrix);
+            font.flush(textAlpha < 1);
         }
     }
 }

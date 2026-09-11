@@ -126,9 +126,11 @@ export class MenuScreen extends GameScreen {
             const selectionFade = this.getSelectionFade(i);
             const pulsate = Math.sin(ctx.gameTime * 6) + 1;
             const colorScale = 1 - pulsate * 0.5 * selectionFade;
+            // Vector3.Lerp(Color.OrangeRed, Color.White, colorScale);
+            // XNA OrangeRed = (255, 69, 0).
             const r = 1 + (1 - 1) * colorScale;
-            const g = 0.255 + (1 - 0.255) * colorScale;
-            const b = 0.2 + (1 - 0.2) * colorScale;
+            const g = 0.2706 + (1 - 0.2706) * colorScale;
+            const b = 0 + (1 - 0) * colorScale;
             const entryColor = new Vec4(r, g, b, fadeValue);
 
             const xPos = Math.pow(fadeValue, 0.2) * 1.8 + entryXBase - 0.1 * selectionFade - 2.5;
@@ -161,7 +163,8 @@ export class MenuScreen extends GameScreen {
             return;
         }
         const numSliderElements = 40;
-        const color = this.selectedEntry === this.menuEntries.indexOf(entry) ? [1, 0.255, 0.2] : [1, 1, 1];
+        // isSelected ? Color.OrangeRed : Color.White (OrangeRed = 255,69,0).
+        const color = this.selectedEntry === this.menuEntries.indexOf(entry) ? [1, 0.2706, 0] : [1, 1, 1];
         const fontColor = new Vec4(color[0] ?? 1, color[1] ?? 1, color[2] ?? 1, fadeValue);
         const emissiveColor = new Vec4(0, 0, 0, fadeValue);
 
@@ -171,7 +174,7 @@ export class MenuScreen extends GameScreen {
         font.addText("(", new Vec3(sliderStartX * Z_DEPTH, entryY * Z_DEPTH, -1 * Z_DEPTH), 1, fontColor, emissiveColor);
         font.addText(")", new Vec3((sliderStartX + 1.21 + sliderWidth) * Z_DEPTH, entryY * Z_DEPTH, -1 * Z_DEPTH), 1, fontColor, emissiveColor);
 
-        const green = new Vec4(0, 0.5, 0, fadeValue);
+        const green = new Vec4(0, 0.502, 0, fadeValue); // XNA Color.Green = (0,128,0)
         const yellow = new Vec4(1, 1, 0, fadeValue);
         const red = new Vec4(1, 0, 0, fadeValue);
 
