@@ -107,6 +107,9 @@ export class RotationGameScreen extends GameScreen {
         const aspect = ctx.viewportWidth / ctx.viewportHeight;
         const projMatrix = Mat4.createPerspectiveFieldOfView(game.getFov(), aspect, 0.1, 300);
         applyXnaCamera(this.camera, viewMatrix, projMatrix);
+        // Port of IconMap.Draw: rotating light during the solve flash. Set
+        // right before rendering so the HUD cannot overwrite it first.
+        iconMap.draw();
         this.batch.setInstances(sqs);
         this.batch.setGlobals(camPos);
         ctx.renderScene(this.scene, this.camera, 0.2, 0.9);

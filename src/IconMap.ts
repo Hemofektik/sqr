@@ -213,6 +213,23 @@ export class IconMap {
         return this.puzzleCompleteAnimation.progress;
     }
 
+    /**
+     * Port of IconMap.Draw: sets the rotating light while the puzzle-complete
+     * animation plays. Must be called right before the icon batch is rendered,
+     * because the light is shared static state that other draw calls overwrite.
+     */
+    public draw(): void {
+        SuperQuadric.groundColor = new Vec4(0, 0, 0, 0);
+        SuperQuadric.skyColor = new Vec4(0, 0, 0, 0);
+
+        if (this.puzzleCompleteAnimation.isRunning) {
+            // rotate the light around the superquadrics
+            const theta = (1 - this.puzzleCompleteAnimation.progress) * (Math.PI * 2 - Math.PI * 0.5);
+            const phi = this.puzzleCompleteAnimation.progress * 3 - 1;
+            SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
+        }
+    }
+
     /** Port of IconMap.Update. */
     public update(totalGameTime: number, cameraPos: Vec3, viewMatrix: Mat4): void {
         let shininess = 0;
