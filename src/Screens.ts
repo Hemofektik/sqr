@@ -1,0 +1,665 @@
+/**
+ * All menu screens - ports of the XNA Screens folder.
+ *
+ * Each screen keeps the original layout math (positions, zDepth, colors) and
+ * triggers the same background color animation on first activation.
+ */
+import { GameScreen } from "./ScreenManager.ts";
+import type { ScreenContext } from "./ScreenManager.ts";
+import { MenuScreen } from "./MenuScreen.ts";
+import type { MenuEntryDef } from "./MenuScreen.ts";
+import { SuperQuadric } from "./SuperQuadric.ts";
+import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
+
+const GAME_NAME = "Superquadriddle";
+
+/** Game modes from RotationGame.GameMode. */
+export const GameMode = {
+    TimeAttack: 0,
+    Challenge: 1,
+    FreePlay: 2,
+} as const;
+export type GameModeValue = (typeof GameMode)[keyof typeof GameMode];
+
+const GAME_MODE_NAMES: Record<number, string> = {
+    0: "TimeAttack",
+    1: "Challenge",
+    2: "FreePlay",
+};
+
+/** Shared ortho camera setup used by all screens' text. */
+function setupFontCamera(font: SQFontLike, viewPosition: Vec3): void {
+    const viewMatrix = Mat4.createLookAt(viewPosition, new Vec3(0, 0, 0), Vec3.up);
+    const projMatrix = Mat4.createOrthographicOffCenter(-100, 100, -56.25, 56.25, 1, 550);
+    font.applyCamera(viewPosition, viewMatrix, projMatrix);
+}
+
+/** Perspective camera setup used by screen titles (XNA CreatePerspectiveOffCenter). */
+function setupFontCameraPerspective(font: SQFontLike, viewPosition: Vec3): void {
+    const viewMatrix = Mat4.createLookAt(viewPosition, new Vec3(0, 0, 0), Vec3.up);
+    const projMatrix = Mat4.createPerspectiveOffCenter(-1.6, 1.6, -0.9, 0.9, 1, 550);
+    font.applyCamera(viewPosition, viewMatrix, projMatrix);
+}
+
+interface SQFontLike {
+    addText(text: string, pos: Vec3, scale: number, diffuse: Vec4, emissive?: Vec4): void;
+    addElement(diffuse: Vec4, emissive: Vec4, scale: number, pos: Vec3, sqParams: Vec4): void;
+    getTextWidth(text: string): number;
+    flush(alphaBlend?: boolean): void;
+    applyCamera(viewPosition: Vec3, view: Mat4, proj: Mat4): void;
+}
+
+function setRotatingLight(transitionPosition: number): void {
+    const theta = (1 - transitionPosition) * (Math.PI - Math.PI * 0.25);
+    const phi = -0.5;
+    SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
+}
+void setRotatingLight;
+
+/** Port of MainMenuScreen. */
+export class MainMenuScreen extends MenuScreen {
+    public override readonly kind = "mainMenu" as const;
+    private readonly onPlay: () => void;
+    private readonly onExitRequest: () => void;
+    private firstTimeStarted = true;
+    private wasCoveredByOtherScreenLastFrame = false;
+
+    public constructor(onPlay: () => void, onExitRequest: () => void) {
+        super(GAME_NAME);
+        this.onPlay = onPlay;
+        this.onExitRequest = onExitRequest;
+        this.menuEntries = [
+            { text: "Play", selected: () => this.onPlay() },
+            { text: "Gallery", selected: () => this.manager?.addScreen(new GalleryScreen()) },
+            { text: "Options", selected: () => this.manager?.addScreen(new OptionsMenuScreen()) },
+            { text: "Highscore", selected: () => this.manager?.addScreen(new HighscoreScreen()) },
+            { text: "Credits", selected: () => this.manager?.addScreen(new CreditsScreen()) },
+            { text: "Exit", selected: () => this.onExitRequest() },
+        ];
+    }
+
+    public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
+        super.update(dt, gameTime, otherScreenHasFocus, coveredByOtherScreen);
+
+        // Port of MainMenuScreen.Update: re-trigger the orange background
+        // animation whenever the menu becomes active again after being covered.
+        if (this.wasCoveredByOtherScreenLastFrame && !coveredByOtherScreen) {
+            this.manager?.context.startBackgroundAnimation([1, 0.7, 0.2, 1], [0.2, 0.2, 0.2, 1]);
+        }
+        this.wasCoveredByOtherScreenLastFrame = coveredByOtherScreen;
+
+        if (otherScreenHasFocus) {
+            this.firstTimeStarted = true;
+        } else if (this.firstTimeStarted) {
+            this.firstTimeStarted = false;
+            this.manager?.context.startBackgroundAnimation([1, 0.7, 0.2, 1], [0.2, 0.2, 0.2, 1]);
+        }
+    }
+}
+
+/** Port of RotationGameModeScreen. */
+export class RotationGameModeScreen extends MenuScreen {
+    public override readonly kind = "gameMode" as const;
+    private categoryIndex = 0;
+    private firstTimeStarted = true;
+
+    public constructor() {
+        super("Game Mode");
+        this.selectedEntry = 1;
+        this.menuEntries = [
+            { text: "", selected: () => this.switchCategory() },
+            { text: "Time Attack", selected: () => this.startGame(GameMode.TimeAttack) },
+            { text: "Challenge", selected: () => this.startGame(GameMode.Challenge) },
+            { text: "Free Play", selected: () => this.startGame(GameMode.FreePlay) },
+            { text: "Back", selected: () => this.onBackRequest() },
+        ];
+        this.refreshCategoryEntry();
+    }
+
+    private refreshCategoryEntry(): void {
+        const categories = this.manager?.context.getCategories() ?? [];
+        if (categories.length === 0) {
+            return;
+        }
+        this.categoryIndex = Math.max(0, Math.min(categories.length - 1, this.categoryIndex));
+        const entry = this.menuEntries[0];
+        if (entry !== undefined) {
+            entry.text = `Category: ${categories[this.categoryIndex] ?? ""}`;
+        }
+    }
+
+    private switchCategory(): void {
+        this.categoryIndex++;
+        this.refreshCategoryEntry();
+    }
+
+    private startGame(gameMode: GameModeValue): void {
+        this.manager?.context.showToast(`${GAME_MODE_NAMES[gameMode]} is not ported yet.`);
+    }
+
+    public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
+        super.update(dt, gameTime, otherScreenHasFocus, coveredByOtherScreen);
+        if (otherScreenHasFocus) {
+            this.firstTimeStarted = true;
+        } else if (this.firstTimeStarted) {
+            this.firstTimeStarted = false;
+            this.manager?.context.startBackgroundAnimation([0, 0.2, 0.4, 1], [0, 0.1, 0.3, 1]);
+        }
+    }
+
+    public override draw(ctx: ScreenContext): void {
+        super.draw(ctx);
+
+        const font = this.getFont();
+        if (font === undefined) {
+            return;
+        }
+
+        // Unlockable icons info (RotationGameModeScreen.Draw).
+        const categories = this.manager?.context.getCategories() ?? [];
+        const category = categories[this.categoryIndex] ?? "";
+        const numIcons = this.manager?.context.getNumIcons(category) ?? 0;
+        const unlocked = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
+        const numUnlockableIcons = Math.max(0, numIcons - unlocked);
+        if (numUnlockableIcons > 0) {
+            const fadeValue = 1 - this.transitionPosition;
+            font.addText(
+                `Unlockable Icons: ${numUnlockableIcons}`,
+                new Vec3(0, -0.35 * 120, -1 * 120),
+                0.9,
+                new Vec4(1, 1, 1, fadeValue),
+                new Vec4(0, 0, 0, fadeValue),
+            );
+            setupFontCamera(font, new Vec3(0, 0, 1));
+            font.flush(fadeValue < 1);
+        }
+    }
+}
+
+/** Port of OptionsMenuScreen. */
+export class OptionsMenuScreen extends MenuScreen {
+    public override readonly kind = "options" as const;
+    private firstTimeStarted = true;
+    private invertYAxis = false;
+
+    public constructor() {
+        super("Options");
+        const sfx: MenuEntryDef = {
+            text: "SFX Volume",
+            selected: () => this.toggleSlider(sfx),
+            slider: { value: 0.8, enabled: true },
+        };
+        const music: MenuEntryDef = {
+            text: "Music Volume",
+            selected: () => this.toggleSlider(music),
+            slider: { value: 0.7, enabled: true },
+        };
+        const brightness: MenuEntryDef = {
+            text: "Brightness",
+            selected: () => this.toggleSlider(brightness),
+            slider: { value: 0.5, enabled: true },
+        };
+        const invert: MenuEntryDef = {
+            text: "Invert Y-Axis: no",
+            selected: () => {
+                this.invertYAxis = !this.invertYAxis;
+                invert.text = `Invert Y-Axis: ${this.invertYAxis ? "yes" : "no"}`;
+            },
+        };
+        const reset: MenuEntryDef = {
+            text: "Reset Settings",
+            selected: () => {
+                for (const e of [sfx, music, brightness]) {
+                    if (e.slider !== undefined) {
+                        e.slider.value = 0.5;
+                        e.slider.enabled = true;
+                    }
+                }
+                this.invertYAxis = false;
+                invert.text = "Invert Y-Axis: no";
+            },
+        };
+        const back: MenuEntryDef = { text: "Back", selected: () => this.onBackRequest() };
+        this.menuEntries = [sfx, music, brightness, invert, reset, back];
+    }
+
+    private toggleSlider(entry: MenuEntryDef): void {
+        if (entry.slider !== undefined) {
+            entry.slider.enabled = !entry.slider.enabled;
+        }
+    }
+
+    public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
+        super.update(dt, gameTime, otherScreenHasFocus, coveredByOtherScreen);
+
+        // Slider adjustment with left/right (OptionsMenuScreen.HandleInput).
+        const entry = this.menuEntries[this.selectedEntry];
+        if (entry?.slider !== undefined) {
+            if (this.heldKeys.left) {
+                entry.slider.value = Math.max(0, entry.slider.value - dt);
+            }
+            if (this.heldKeys.right) {
+                entry.slider.value = Math.min(1, entry.slider.value + dt);
+            }
+        }
+
+        if (otherScreenHasFocus) {
+            this.firstTimeStarted = true;
+        } else if (this.firstTimeStarted) {
+            this.firstTimeStarted = false;
+            this.manager?.context.startBackgroundAnimation([0.6, 0.6, 0, 1], [0.3, 0.5, 0, 1]);
+        }
+    }
+}
+
+/** Port of CreditsScreen. */
+export class CreditsScreen extends GameScreen {
+    public readonly kind = "credits" as const;
+    private firstTimeStarted = true;
+    private gameTimeIndex = 0;
+
+    private readonly credits: {
+        text: string;
+        timeOffset: number;
+        pos: Vec3;
+        size: number;
+        color: Vec4;
+    }[] = [];
+
+    public constructor() {
+        super();
+        this.transitionOnTime = 0.5;
+        this.transitionOffTime = 0.5;
+
+        const textDepth = -1;
+        const mainTitlePos = new Vec3(-2.5, 0, textDepth);
+        const titlePos = new Vec3(-1.9, 0, textDepth);
+        const namePos = new Vec3(-1.4, 0, textDepth);
+        const musicTrackPos = new Vec3(-1.2, 0, textDepth);
+
+        const timeOffsetTitle = 1.5;
+        const timeOffsetName = 0.3;
+        const timeOffsetMusicTrack = 0.25;
+
+        const titleSize = 1;
+        const nameSize = 1;
+        const musicTrackSize = 0.8;
+
+        const titleColor = new Vec4(0.5, 0.5, 0.5, 1);
+        const nameColor = new Vec4(0.8, 0.6, 0.2, 1);
+        const musicTrackColor = new Vec4(0.6, 0.4, 0.1, 1);
+
+        const entry = (text: string, timeOffset: number, pos: Vec3, size: number, color: Vec4): void => {
+            this.credits.push({ text, timeOffset, pos, size, color });
+        };
+
+        entry(GAME_NAME, 3, mainTitlePos, 2, new Vec4(1, 0.8, 0.4, 1));
+        entry("Programmer", timeOffsetTitle + 0.5, titlePos, titleSize, titleColor);
+        entry("Richard Schubert", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Creative Influences", timeOffsetTitle, titlePos, titleSize, titleColor);
+        entry("Ulrike Rauer", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Stephan Ziep", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Paul Arnst", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Johannes Kristmann", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Nico Franze", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Icons", timeOffsetTitle, titlePos, titleSize, titleColor);
+        entry("???famfamfam???", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Visual Studio 2008 Icon Packkkkkkk", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Music", timeOffsetTitle, titlePos, titleSize, titleColor);
+        entry("KeeX", timeOffsetName, namePos, nameSize, nameColor);
+        entry("PaL iNc. B0nd", timeOffsetMusicTrack, musicTrackPos, musicTrackSize, musicTrackColor);
+        entry("longway", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Drunken Logic Bass_remix", timeOffsetMusicTrack, musicTrackPos, musicTrackSize, musicTrackColor);
+        entry("shagrugge", timeOffsetName, namePos, nameSize, nameColor);
+        entry("Hooked on Bossaphonics (metamorphosis mix)", timeOffsetMusicTrack, musicTrackPos, musicTrackSize, musicTrackColor);
+        entry("Sax, Flute, n Glass", timeOffsetMusicTrack, musicTrackPos, musicTrackSize, musicTrackColor);
+        entry("Andrew Meredith", timeOffsetName, namePos, nameSize, nameColor);
+        entry("I Don't Know What It's Called", timeOffsetMusicTrack, musicTrackPos, musicTrackSize, musicTrackColor);
+    }
+
+    public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
+        super.update(dt, gameTime, otherScreenHasFocus, coveredByOtherScreen);
+        this.gameTimeIndex += dt;
+        if (this.firstTimeStarted) {
+            this.firstTimeStarted = false;
+            this.manager?.context.startBackgroundAnimation([0, 0, 0, 1], [0, 0, 0, 1]);
+        }
+    }
+
+    public override draw(_ctx: ScreenContext): void {
+        const font = this.manager?.context.font;
+        if (font === undefined) {
+            return;
+        }
+
+        const theta = (1 - this.transitionPosition) * (Math.PI - Math.PI * 0.25);
+        const phi = -0.5;
+        SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
+
+        const fontEmissiveColor = new Vec4(0, 0, 0, 1 - this.transitionPosition);
+        const zDepth = 30;
+
+        let timeIndex = 0;
+        const timeDistance = 4;
+        const timeDistanceInv = 1 / timeDistance;
+        for (const ce of this.credits) {
+            timeIndex += ce.timeOffset;
+            if (timeIndex < this.gameTimeIndex - timeDistance || timeIndex > this.gameTimeIndex + 3.5) {
+                continue;
+            }
+            const progress = this.gameTimeIndex - timeIndex;
+            const progressSign = Math.sign(progress);
+            const progressNormalized = Math.abs(progress) * timeDistanceInv;
+            const side = 2.5 - Math.pow(progressNormalized, 0.2) * progressSign * 3;
+
+            const fontColor = new Vec4(ce.color.x, ce.color.y, ce.color.z, ce.color.w - this.transitionPosition);
+            font.addText(
+                ce.text,
+                new Vec3((ce.pos.x + side) * zDepth, (ce.pos.y + progress) * zDepth, ce.pos.z * zDepth),
+                ce.size,
+                fontColor,
+                fontEmissiveColor,
+            );
+        }
+
+        setupFontCameraPerspective(font, new Vec3(0, -0.7, 1));
+        font.flush(true);
+    }
+}
+
+/** Port of HighscoreScreen. */
+export class HighscoreScreen extends GameScreen {
+    public readonly kind = "highscore" as const;
+    private firstTimeStarted = true;
+    private gameMode: GameModeValue = GameMode.TimeAttack;
+    private categoryIndex = 0;
+    private isToggable = true;
+
+    private static readonly NUM_GAME_MODES = 2; // excludes FreePlay
+
+    private static readonly ENTRIES = [
+        { place: 1, score: 1000000, gamerTag: "Rotkaeppchen" },
+        { place: 2, score: 800000, gamerTag: "Rike" },
+        { place: 3, score: 500000, gamerTag: "Kuchen" },
+        { place: 4, score: 300000, gamerTag: "Dude" },
+        { place: 5, score: 150000, gamerTag: "pal" },
+        { place: 6, score: 80000, gamerTag: "Cookie" },
+        { place: 7, score: 40000, gamerTag: "superquadric" },
+        { place: 8, score: 20000, gamerTag: "guy" },
+        { place: 9, score: 10000, gamerTag: "cube" },
+        { place: 10, score: 5000, gamerTag: "polygon" },
+    ];
+
+    public constructor() {
+        super();
+        this.transitionOnTime = 0.5;
+        this.transitionOffTime = 0.5;
+    }
+
+    public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
+        super.update(dt, gameTime, otherScreenHasFocus, coveredByOtherScreen);
+        if (this.firstTimeStarted) {
+            this.firstTimeStarted = false;
+            this.manager?.context.startBackgroundAnimation([0.2, 0.2, 0.2, 1], [0, 0.05, 0.1, 1]);
+        }
+    }
+
+    /** Port of HighscoreScreen.HandleInput (toggling). */
+    public handleToggle(action: "up" | "down" | "left" | "right"): void {
+        if (!this.isToggable) {
+            return;
+        }
+        const categories = this.manager?.context.getCategories() ?? [];
+        const numCategories = categories.length;
+        if (action === "left") {
+            this.categoryIndex = (this.categoryIndex + numCategories - 1) % numCategories;
+        } else if (action === "right") {
+            this.categoryIndex = (this.categoryIndex + 1) % numCategories;
+        } else if (action === "up") {
+            this.gameMode = ((this.gameMode + HighscoreScreen.NUM_GAME_MODES - 1) % HighscoreScreen.NUM_GAME_MODES) as GameModeValue;
+        } else if (action === "down") {
+            this.gameMode = ((this.gameMode + 1) % HighscoreScreen.NUM_GAME_MODES) as GameModeValue;
+        }
+    }
+
+    public override draw(_ctx: ScreenContext): void {
+        const font = this.manager?.context.font;
+        if (font === undefined) {
+            return;
+        }
+
+        const theta = (1 - this.transitionPosition) * (Math.PI - Math.PI * 0.25);
+        const phi = -0.5;
+        SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
+
+        const fontEmissiveColor = new Vec4(0, 0, 0, 1 - this.transitionPosition);
+
+        // Title.
+        {
+            const fontColor = new Vec4(1, 0.8, 0.4, 1 - this.transitionPosition);
+            const viewPosition = new Vec3(0, 0, 1);
+            const zDepth = 30 - this.transitionPosition * 45;
+            const zDepthScale = 30 / zDepth;
+            font.addText(
+                "Highscore",
+                new Vec3(-0.7 * zDepthScale, 0.5 * zDepthScale, -1).multiplyScalar(zDepth),
+                1,
+                fontColor,
+                fontEmissiveColor,
+            );
+            setupFontCameraPerspective(font, viewPosition);
+            font.flush(true);
+        }
+
+        // Scores.
+        {
+            const fontColor = new Vec4(1, 1, 1, 1 - this.transitionPosition);
+            const viewPosition = new Vec3(0, 0, 1);
+            const zDepth = 80 - this.transitionPosition * 120;
+
+            for (let n = 0; n < HighscoreScreen.ENTRIES.length; n++) {
+                const e = HighscoreScreen.ENTRIES[n];
+                if (e === undefined) {
+                    continue;
+                }
+                const placeStr = String(e.place);
+                const scoreStr = String(e.score);
+                const zDepthScale = 60 / zDepth;
+                const fontWidthScale = 0.015 * zDepthScale;
+                const fontHeightScale = 0.14 * zDepthScale;
+                const placeWidth = font.getTextWidth(placeStr) * fontWidthScale;
+                const scoreWidth = font.getTextWidth(scoreStr) * fontWidthScale;
+                font.addText(
+                    placeStr,
+                    new Vec3(-0.85 * zDepthScale - placeWidth, 0.3 - fontHeightScale * n, -1).multiplyScalar(zDepth),
+                    1,
+                    fontColor,
+                    fontEmissiveColor,
+                );
+                font.addText(
+                    scoreStr,
+                    new Vec3(-0.25 * zDepthScale - scoreWidth, 0.3 - fontHeightScale * n, -1).multiplyScalar(zDepth),
+                    1,
+                    fontColor,
+                    fontEmissiveColor,
+                );
+                font.addText(
+                    ` - ${e.gamerTag}`,
+                    new Vec3(-0.146, 0.3 - fontHeightScale * n, -1).multiplyScalar(zDepth),
+                    1,
+                    fontColor,
+                    fontEmissiveColor,
+                );
+            }
+            setupFontCameraPerspective(font, viewPosition);
+            font.flush(true);
+        }
+
+        // Game mode / category label.
+        {
+            const fadeValue = 1 - this.transitionPosition;
+            const fontColor = new Vec4(1, 1, 1, fadeValue);
+            const emissive = new Vec4(0, 0, 0, fadeValue);
+            const categories = this.manager?.context.getCategories() ?? [];
+            const category = categories[this.categoryIndex] ?? "";
+            const zDepth = 60;
+            font.addText(GAME_MODE_NAMES[this.gameMode] ?? "", new Vec3(-0.35, -1.2, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
+            font.addText(category, new Vec3(-0.35, -1.3, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
+            setupFontCamera(font, new Vec3(0, 0, 1));
+            font.flush(fadeValue < 1);
+        }
+    }
+}
+
+/** Port of GalleryScreen (icon grid simplified to category summary). */
+export class GalleryScreen extends GameScreen {
+    public readonly kind = "gallery" as const;
+    private firstTimeStarted = true;
+    private categoryIndex = 0;
+
+    public constructor() {
+        super();
+        this.transitionOnTime = 0.5;
+        this.transitionOffTime = 0.5;
+    }
+
+    public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
+        super.update(dt, gameTime, otherScreenHasFocus, coveredByOtherScreen);
+        if (this.firstTimeStarted) {
+            this.firstTimeStarted = false;
+            this.manager?.context.startBackgroundAnimation([0.2, 0.6, 0.8, 1], [0.1, 0.3, 0.7, 1]);
+        }
+    }
+
+    public handleCategory(delta: number): void {
+        const categories = this.manager?.context.getCategories() ?? [];
+        if (categories.length === 0) {
+            return;
+        }
+        this.categoryIndex = (this.categoryIndex + categories.length + delta) % categories.length;
+    }
+
+    public override draw(_ctx: ScreenContext): void {
+        const font = this.manager?.context.font;
+        if (font === undefined) {
+            return;
+        }
+        const fontEmissive = new Vec4(0, 0, 0, 1 - this.transitionPosition);
+        const fontColor = new Vec4(1, 1, 1, 1 - this.transitionPosition);
+        const categories = this.manager?.context.getCategories() ?? [];
+        const category = categories[this.categoryIndex] ?? "";
+        const numIcons = this.manager?.context.getNumIcons(category) ?? 0;
+        const unlocked = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
+
+        // Title (GalleryScreen.Draw): perspective projection with zDepth fade.
+        const zDepth = 30 - this.transitionPosition * 45;
+        const zDepthScale = 30 / zDepth;
+
+        font.addText(
+            "Gallery",
+            new Vec3(-0.7 * zDepthScale, 0.5 * zDepthScale, -1).multiplyScalar(zDepth),
+            1,
+            new Vec4(1, 0.8, 0.4, 1 - this.transitionPosition),
+            fontEmissive,
+        );
+        setupFontCameraPerspective(font, new Vec3(0, 0, 1));
+        font.flush(true);
+
+        // Category summary (ortho, like the icon-name text in the original).
+        font.addText(
+            `${category}: ${unlocked}/${numIcons} unlocked`,
+            new Vec3(-1.2, -0.75, -1).multiplyScalar(60),
+            0.9,
+            fontColor,
+        );
+        setupFontCamera(font, new Vec3(0, 0, 1));
+        font.flush(true);
+    }
+}
+
+/** Port of HelpScreen. */
+export class HelpScreen extends GameScreen {
+    public readonly kind = "help" as const;
+
+    public constructor() {
+        super();
+        this.transitionOnTime = 0.5;
+        this.transitionOffTime = 0.5;
+    }
+
+    public override draw(_ctx: ScreenContext): void {
+        const font = this.manager?.context.font;
+        if (font === undefined) {
+            return;
+        }
+        const fontEmissiveColor = new Vec4(0, 0, 0, 1 - this.transitionPosition);
+
+        // Title.
+        {
+            const fontColor = new Vec4(1, 0.8, 0.4, 1 - this.transitionPosition);
+            const viewPosition = new Vec3(0, 0, 1);
+            const zDepth = 30;
+            const zDepthScale = 30 / zDepth;
+            font.addText(
+                "How to play",
+                new Vec3(-0.8 * zDepthScale - this.transitionPosition * 2, 0.3 * zDepthScale, -1).multiplyScalar(zDepth),
+                1,
+                fontColor,
+                fontEmissiveColor,
+            );
+            setupFontCameraPerspective(font, viewPosition);
+            font.flush(true);
+        }
+
+        // How to play text.
+        {
+            const fontColor = new Vec4(1, 1, 1, 1 - this.transitionPosition);
+            const zDepth = 80;
+            font.addText(
+                "Rotate the image until it matches the icon\n" +
+                "shown in the top left corner of the screen.\n\n" +
+                "Upside down images don't count.",
+                new Vec3(-1.2 - this.transitionPosition * 2, 0, -1).multiplyScalar(zDepth),
+                1,
+                fontColor,
+                fontEmissiveColor,
+            );
+            setupFontCamera(font, new Vec3(0, 0, 1));
+            font.flush(true);
+        }
+    }
+}
+
+/** Port of MessageBoxScreen. */
+export class MessageBoxScreen extends GameScreen {
+    public readonly kind = "messageBox" as const;
+    public override isPopup = true;
+    private readonly message: string;
+    private onAccepted: (() => void) | undefined;
+
+    public constructor(message: string, onAccepted?: () => void) {
+        super();
+        this.message = message;
+        this.onAccepted = onAccepted;
+        this.transitionOnTime = 0.2;
+        this.transitionOffTime = 0.2;
+    }
+
+    public accept(): void {
+        this.onAccepted?.();
+        this.exitScreen();
+    }
+
+    public override draw(_ctx: ScreenContext): void {
+        const font = this.manager?.context.font;
+        if (font === undefined) {
+            return;
+        }
+        const fadeValue = 1 - this.transitionPosition;
+        const fontColor = new Vec4(1, 1, 1, fadeValue);
+        const zDepth = 60;
+        font.addText(this.message, new Vec3(-0.5 * zDepth, 0.1 * zDepth, -1 * zDepth), 0.9, fontColor);
+        setupFontCamera(font, new Vec3(0, 0, 1));
+        font.flush(true);
+    }
+}

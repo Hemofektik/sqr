@@ -1,0 +1,143 @@
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    color: #fff;
+    font-family: "Segoe UI", "Trebuchet MS", "Verdana", sans-serif;
+}
+
+#canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#menu-root {
+    position: absolute;
+    left: 8vw;
+    top: 10vh;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+#menu-root.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Menu text is rendered as superquadrics on the canvas; keep the HTML
+   elements only as an invisible mouse hit area. */
+#menu-root.textless {
+    opacity: 0 !important;
+}
+
+#menu-root.textless #menu-title,
+#menu-root.textless #menu-hint {
+    visibility: hidden;
+}
+
+#menu-title {
+    margin: 0 0 4vh 0;
+    font-size: clamp(2.4rem, 6vw, 5.2rem);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 24px rgba(255, 140, 60, 0.35);
+}
+
+#menu-entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
+}
+
+#menu-entries li {
+    font-size: clamp(1.4rem, 3vw, 2.4rem);
+    line-height: 1.55;
+    letter-spacing: 0.08em;
+    color: #fff;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.12s linear, transform 0.12s linear, text-shadow 0.12s linear;
+    transform: translateX(0);
+}
+
+#menu-entries li.selected {
+    color: #ff6a3c;
+    transform: translateX(-0.4em);
+    text-shadow: 0 0 18px rgba(255, 69, 0, 0.55);
+}
+
+#menu-hint {
+    margin-top: 6vh;
+    font-size: 0.85rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+#dialog {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+#dialog.hidden,
+#toast.hidden {
+    display: none;
+}
+
+#dialog-panel {
+    min-width: min(28rem, 80vw);
+    padding: 1.6rem 1.8rem;
+    background: rgba(12, 12, 12, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+}
+
+#dialog-message {
+    margin: 0 0 1.2rem 0;
+    font-size: 1.15rem;
+}
+
+#dialog-actions {
+    display: flex;
+    gap: 0.8rem;
+    justify-content: flex-end;
+}
+
+#dialog-actions button {
+    font: inherit;
+    font-size: 1rem;
+    padding: 0.4rem 1.1rem;
+    color: #fff;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+}
+
+#dialog-actions button:hover,
+#dialog-actions button:focus {
+    border-color: #ff6a3c;
+    color: #ff6a3c;
+}
+
+#toast {
+    position: absolute;
+    left: 50%;
+    bottom: 8vh;
+    transform: translateX(-50%);
+    padding: 0.7rem 1.2rem;
+    background: rgba(12, 12, 12, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    letter-spacing: 0.06em;
+}

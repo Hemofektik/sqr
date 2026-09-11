@@ -1,0 +1,182 @@
+/**
+ * ScreenManager - port of GameStateManagement ScreenManager/GameScreen.
+ *
+ * Screens form a stack. The topmost active screen receives input; screens
+ * below it are covered. Each screen has transition on/off times and a
+ * TransitionPosition (0 = fully on, 1 = fully off).
+ */
+
+export type ScreenKind =
+    | "background"
+    | "mainMenu"
+    | "gameMode"
+    | "options"
+    | "highscore"
+    | "credits"
+    | "gallery"
+    | "help"
+    | "messageBox";
+
+import type { SQFont } from "./SQFont.ts";
+
+export interface ScreenContext {
+    /** Total game time in seconds. */
+    gameTime: number;
+    /** Seconds since the last frame. */
+    dt: number;
+    /** Change the background animation colors (MenuBackGround, BackGround). */
+    startBackgroundAnimation(color1: [number, number, number, number], color2: [number, number, number, number]): void;
+    /** Icon category names, e.g. ["Common Flags", "Food", "Mix"]. */
+    getCategories(): string[];
+    /** Number of icons in a category. */
+    getNumIcons(category: string): number;
+    /** Number of icons unlocked in a category. */
+    getNumIconsUnlocked(categoryIndex: number): number;
+    /** Show a transient toast message. */
+    showToast(message: string): void;
+    /** The superquadric font used for all screen text. */
+    font: SQFont;
+}
+
+export abstract class GameScreen {
+    public isPopup = false;
+    public transitionOnTime = 0;
+    public transitionOffTime = 0;
+    public transitionPosition = 1;
+    public screenState: "transitionOn" | "active" | "transitionOff" | "hidden" = "transitionOn";
+    public abstract readonly kind: ScreenKind;
+
+    protected manager: ScreenManager | undefined;
+
+    public get transitionAlpha(): number {
+        return 1 - this.transitionPosition;
+    }
+
+    public get isActive(): boolean {
+        return (
+            this.screenState === "transitionOn" ||
+            this.screenState === "active" ||
+            (this.screenState === "transitionOff" && !this.isCoveredByOtherScreen)
+        );
+    }
+
+    private isCoveredByOtherScreen = false;
+
+    public bind(manager: ScreenManager): void {
+        this.manager = manager;
+    }
+
+    public exitScreen(): void {
+        this.screenState = "transitionOff";
+        this.transitionOffTime = Math.max(this.transitionOffTime, 0.001);
+    }
+
+    public update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
+        this.isCoveredByOtherScreen = coveredByOtherScreen;
+        void gameTime;
+
+        // Port of XNA GameScreen.Update transition logic.
+        otherScreenHasFocus = otherScreenHasFocus || coveredByOtherScreen;
+
+        if (this.screenState === "transitionOn") {
+            // transitionPosition runs 1 -> 0 while coming in.
+            this.transitionPosition = Math.max(0, this.transitionPosition - dt / Math.max(this.transitionOnTime, 0.001));
+            if (this.transitionPosition <= 0) {
+                this.screenState = "active";
+            }
+        } else if (this.screenState === "transitionOff") {
+            // Once the transition finishes, remove the screen.
+            this.transitionPosition = Math.min(1, this.transitionPosition + dt / Math.max(this.transitionOffTime, 0.001));
+            if (this.transitionPosition >= 1) {
+                this.manager?.removeScreen(this);
+            }
+        } else if (coveredByOtherScreen && !this.isPopup) {
+            // Covered by another screen: transition off, then go hidden.
+            this.transitionPosition = Math.min(1, this.transitionPosition + dt / Math.max(this.transitionOffTime, 0.001));
+            if (this.transitionPosition >= 1) {
+                this.screenState = "hidden";
+            }
+        } else if (this.screenState === "hidden") {
+            // Screen is uncovered again: transition back in.
+            this.screenState = "transitionOn";
+        }
+    }
+
+    public abstract draw(ctx: ScreenContext): void;
+}
+
+export class ScreenManager {
+    private readonly screens: GameScreen[] = [];
+    private screensToUpdate: GameScreen[] = [];
+
+    public constructor(context: ScreenContext) {
+        this.context = context;
+    }
+
+    public readonly context: ScreenContext;
+
+    public addScreen(screen: GameScreen): void {
+        screen.bind(this);
+        this.screens.push(screen);
+    }
+
+    public removeScreen(screen: GameScreen): void {
+        const index = this.screens.indexOf(screen);
+        if (index >= 0) {
+            this.screens.splice(index, 1);
+        }
+    }
+
+    /** Removes the topmost screen (Back). */
+    public popScreen(): void {
+        const top = this.screens[this.screens.length - 1];
+        if (top !== undefined) {
+            top.exitScreen();
+        }
+    }
+
+    public managesScreen(kind: ScreenKind): boolean {
+        return this.screens.some((s) => s.kind === kind);
+    }
+
+    public getScreen(kind: ScreenKind): GameScreen | undefined {
+        return this.screens.find((s) => s.kind === kind);
+    }
+
+    public getScreens(): GameScreen[] {
+        return this.screens.slice();
+    }
+
+    public update(dt: number, gameTime: number): void {
+        this.screensToUpdate = this.screens.slice();
+
+        let otherScreenHasFocus = false;
+        let coveredByOtherScreen = false;
+
+        for (let i = this.screensToUpdate.length - 1; i >= 0; i--) {
+            const screen = this.screensToUpdate[i];
+            if (screen === undefined) {
+                continue;
+            }
+            screen.update(dt, gameTime, otherScreenHasFocus, coveredByOtherScreen);
+            if (screen.screenState !== "hidden") {
+                otherScreenHasFocus = true;
+                if (!screen.isPopup) {
+                    coveredByOtherScreen = true;
+                }
+            }
+        }
+
+        this.context.gameTime = gameTime;
+        this.context.dt = dt;
+    }
+
+    public draw(): void {
+        for (const screen of this.screens) {
+            if (screen.screenState === "hidden") {
+                continue;
+            }
+            screen.draw(this.context);
+        }
+    }
+}

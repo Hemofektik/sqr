@@ -1,0 +1,169 @@
+
+Super Quadric Riddle >>> Super Quadriddle
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> TODO essentials:
+
+	Game1: http://www.bobblebrook.com/games/coign-of-vantage
+
+	-	 website!
+
+	-	Game metadata
+		Title, Description
+		Genre
+		Game Capabilities
+		Thumbnail (64x64), Box art (584x700, does this include the XBLIG banner?), Screenshots, Trailer
+
+	- 	trailers@gametrailers.com
+
+		-	xbox
+			-	fixed LB RB controls in gallery (test fix)
+			-	try to unlock all icons (1.210.000 score at least)
+			-	test manual user logout during menu + ingame
+
+		-	credits
+			-	make it slower, better readable
+			-	finalize it! (correct data) (email me at: ...)
+			-	make it scrollable
+
+		-	restrict game on trial mode somehow (less categories, less unlockable icons, no storage)
+
+		-	improve statistics screen (visually)
+
+		-	refine wording/speech (let someone native speaking check the wording of everything)
+			-	help text screen how to play the game( "upside down images don't count" ))
+			-	Celeritas Loading Screen
+			-	improve praising the player on puzzle solving speed (excellent, awesome... etc.) (move it a little bit from left to right)
+
+		-	 celeritas
+			-	add right side line check for collision
+
+		-	sounds
+			-	morphing in the new puzzle should make a sound
+			-	add "time up" sound + time tick/tack on 5 seconds or less
+			-	add challenge complete sound
+			-	add menu selection changed sound (up and down)
+
+		-	fill in viable default Highscore Data (test to reach 1.000.000 points)
+
+		-	do audience tests to see their performance (learning by doing) and feedback
+
+		-	check all TODOs and fix them if necessary
+
+		-	think about online highscores (XBLIG Community API)
+
+		-	Creating Great Community Games
+			-	Consider “signing in” by pressing A or Start
+			-	display a screen that sells your game
+			-	If only one mode, use “Start Game”
+			-	Display brief tutorial, !!!controls!!!, tips
+			-	Purchase Full Game in ingame options menu
+			-	START pauses, and BACK brings up scoreboard (what does back do atm?)
+			-	Unplugged controller should pause game
+		-	xna best practices
+			-	Test different speaker configurations – headphones, stereo, 5.1, etc.
+			-	test 480p, 720p display settings
+			-	Make sure the game respects Game.IsActive and pauses as appropriate when this is set to true, such as when the guide is being displayed over the game.
+			-	test what happens on SignedInGamer.SignedOut
+			-	does the correct player get the highscore?!
+		-	checklist these on xbox:
+				-	http://forums.xna.com/forums/t/19525.aspx
+
+
+
+
+	Game2: Quizzle?	 (well done game boy game clone)
+
+	Game3: quadtris (well done tetris clone (game boy version))
+		-	Music: I Don't Know What It's Called by andymeredith
+		
+	Game4: well done Colums clone? (http://www.gametrailers.com/player/39734.html)
+
+	{
+		Game4: quad vici (vier gewinnt)
+	
+		Game5: quadtron ( well done tron cycle clone )
+		
+		Game6: quadout ( well done breakout clone )
+		
+		Game7: gravity (shoot everything on the 2D screen) ( donutgame from directx7 sdk )
+	}
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Gametitle:
+
+	-	PicTurn (spoken like picture)
+	-	PicChurn
+
+	- Bloco Loco
+		- Bloco = Block
+		- Loco = crazy, verrückt, (Amer.) bekloppt
+		-> Bloco
+		    loco
+		-> to be loco
+
+	- Cubissimo
+
+	- QbD³	QuBeD³
+		- cubed = adj. [math.] -> hoch drei 
+			  adj. -> in Würfel geschnitten 
+		- d³ = 3 Dimensionen
+		- Volumen = Seitenlänge hoch 3 = (x*y*z) = 3D
+		
+	- more Ideas
+		- Tetra
+		- Cube	-> Qb
+		- Pixel
+			- pixeliced
+		- Dice
+			- to dice = etwas würfeln, auch beim Kochen
+		- cubic	
+		- slice
+
+		- iconize
+		- un/de-dice (im sinne von entwürfeln)
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  Teamname:
+
+	- Knorke
+	- square fish
+	- Hemofektik
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  Credits:
+
+	-	Icons:
+		-	famfamfam (Mark James)
+		-	visual studio 08 icons
+		-	Turbomilk
+		- 	Jose Pardilla (commercial logos)
+	-	Music:
+		-	...
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> TODO nice to have:
+
+	-	Highscore
+		-	if gold member
+			-	world top 10, your place and your friends
+			-	via dyndns live server
+		-	else (offline/silver)
+			-	local highscore
+			
+	-	sq instancing with quaternions
+			
+	-	put icons before menu entries
+
+	-	Rumble on Error/Failure
+
+	-	doing nothing in the menu runs idle animation screen with all tracks playlist
+
+	-	local multiplayer in each game
+
+	-	live multiplayer in each game
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 
+
+
+http://ccmixter.org/
+http://www.freesound.org/
+
+AG-SYS(the return) by Tomas PhUsIoN 
+GONE by djsociopath
+

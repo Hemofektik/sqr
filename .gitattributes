@@ -1,0 +1,2 @@
+# Superquadriddle assets (textures, fonts, audio, icons, meshes, curves)
+assets/** filter=lfs diff=lfs merge=lfs -text

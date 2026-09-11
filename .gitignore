@@ -1,0 +1,11 @@
+/.vscode
+/node_modules
+/dist
+.vitest/
+
+# IDE
+/.vscode
+
+# Legacy XNA sources and tools are not part of the web port
+/src_xna/
+/tools/
