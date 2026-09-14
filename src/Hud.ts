@@ -38,6 +38,10 @@ export class ScoreBoard {
         return this.score + this.lastScoreAdded;
     }
 
+    public getScoreShown(): number {
+        return this.scoreShown;
+    }
+
     public setScore(value: number): void {
         this.score = value;
     }

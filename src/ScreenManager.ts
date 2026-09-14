@@ -51,6 +51,8 @@ export interface ScreenContext {
     drawIconPreview(current: IconImage, previous: IconImage | undefined, alphaCurrent: number, alphaPrevious: number): void;
     /** Draws one 64x64 stack icon (Challenge mode) in backbuffer coordinates. */
     drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void;
+    /** Draws the unlocked icon flash (128x128 at (199,815)). */
+    drawUnlockIcon(image: IconImage, alpha: number): void;
 }
 
 export abstract class GameScreen {
@@ -85,7 +87,7 @@ export abstract class GameScreen {
     }
 
     /** Called once the screen is registered with the manager. */
-    protected onBound(): void {}
+    protected onBound(): void { }
 
     public exitScreen(): void {
         this.screenState = "transitionOff";

@@ -12,6 +12,9 @@ import { Countdown, Praising, ScoreBoard, TimeBoard } from "./Hud.ts";
 import { SQFont } from "./SQFont.ts";
 import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
 
+import { IconUnlockDisplay } from "./IconUnlockDisplay.ts";
+import { NUM_UNLOCKED_ICONS_BY_DEFAULT } from "./UserConfig.ts";
+
 export const GAME_DURATION = 30;
 const FOV = 1.3;
 const PUZZLE_SOLVED_COMPLETE_ANIMATION_TIME = 1.5;
@@ -32,6 +35,14 @@ export interface RotationGameHost {
     /** Loads an icon image by category and index (browser texture loading). */
     loadIcon(category: string, index: number): Promise<IconImage>;
     getNumIcons(category: string): Promise<number>;
+    /** Display name of an icon (for the unlock display). */
+    getIconName(category: string, index: number): string;
+    /** Number of icons unlocked in a category (persisted). */
+    getNumIconsUnlocked(categoryIndex: number): number;
+    /** Unlocks the next icon in a category (persisted). */
+    unlockIcon(categoryIndex: number): void;
+    /** Draws the unlocked icon flash into the HUD. */
+    drawUnlockIcon(image: IconImage, alpha: number): void;
     /**
      * Draws the 2D icon preview into the HUD corner (128x128 rect at
      * (199,115) in the 1280x720 backbuffer, point-clamped sampling). During
@@ -51,6 +62,8 @@ export interface RotationGameHost {
 export interface GameStatistics {
     score: number;
     numberOfPuzzlesSolved: number;
+    numberOfIconsUnlocked: number;
+    numberOfIconsUnlockable: number;
     timeSpendInThisGame: number;
     averagePuzzleSolvingSpeed: number;
 }
@@ -72,6 +85,7 @@ function isColorGreyish(color: Vec4): boolean {
 
 export class RotationGame {
     private readonly categoryName: string;
+    private readonly categoryIndex: number;
     private readonly host: RotationGameHost;
     private readonly gameMode: GameMode;
 
@@ -86,6 +100,7 @@ export class RotationGame {
     private readonly timeBoard: TimeBoard;
     private readonly praising: Praising;
     private readonly countdown: Countdown;
+    private readonly iconUnlockDisplay: IconUnlockDisplay;
 
     private randomIconIndex: number[] = [];
     private currentIconIndex = 0;
@@ -116,6 +131,8 @@ export class RotationGame {
     private statistics: GameStatistics = {
         score: 0,
         numberOfPuzzlesSolved: 0,
+        numberOfIconsUnlocked: 0,
+        numberOfIconsUnlockable: 0,
         timeSpendInThisGame: -1,
         averagePuzzleSolvingSpeed: -1,
     };
@@ -124,12 +141,13 @@ export class RotationGame {
         this.host = host;
         this.gameMode = gameMode;
         this.categoryName = categoryName;
-        void categoryIndex;
+        this.categoryIndex = categoryIndex;
 
         this.scoreBoard = new ScoreBoard(host.font);
         this.timeBoard = new TimeBoard(host.font);
         this.praising = new Praising(host.font);
         this.countdown = new Countdown(host.font, 3.5);
+        this.iconUnlockDisplay = new IconUnlockDisplay(host.font, host);
 
         // Port of camFuzzingRotationCurve (0,0 -> 0.2,0 -> 1,1 smooth).
         const camFuzzingRotationCurve = new Curve();
@@ -354,6 +372,43 @@ export class RotationGame {
         if (this.gameMode === "TimeAttack" && this.timeBoard.TimeLeft <= 0 && !this.gameOver) {
             this.beginGameOver(totalGameTime);
         }
+
+        this.conditionalUnlockIcon(totalGameTime);
+    }
+
+    /**
+     * Port of ConditionalUnlockIcon: unlocks a new icon each 10000 score
+     * points reached (starting at 30000). The unlock count persists via
+     * UserConfig (localStorage).
+     */
+    private conditionalUnlockIcon(totalGameTime: number): void {
+        const numIconsUnlocked = this.host.getNumIconsUnlocked(this.categoryIndex);
+        if (numIconsUnlocked + 1 > this.numIcons) {
+            // No icons left to unlock.
+            this.iconUnlockDisplay.setUnlockDistance(Number.MAX_SAFE_INTEGER);
+            return;
+        }
+
+        const scorePerUnlockedIcon = 10000;
+        const minimumScoreToStartUnlock = 30000;
+        const scoreNextUnlock =
+            (numIconsUnlocked - NUM_UNLOCKED_ICONS_BY_DEFAULT) * scorePerUnlockedIcon + minimumScoreToStartUnlock;
+        this.iconUnlockDisplay.setUnlockDistance(scoreNextUnlock - this.scoreBoard.getScoreShown());
+        if (this.scoreBoard.getScore() > scoreNextUnlock) {
+            if (this.gameMode !== "Challenge") {
+                // Set the next icon to the new unlocked one.
+                this.randomIconIndex[this.currentIconIndex] = numIconsUnlocked;
+            }
+            // Persist the unlock (userConfig.SetNumIconsUnlocked).
+            this.host.unlockIcon(this.categoryIndex);
+            const name = this.host.getIconName(this.categoryName, this.currentIconIndex);
+            this.iconUnlockDisplay.unlockIcon(totalGameTime, name, this.iconImage);
+            this.statistics.numberOfIconsUnlocked++;
+        }
+    }
+
+    public getIconUnlockDisplay(): IconUnlockDisplay {
+        return this.iconUnlockDisplay;
     }
 
     private beginGameOver(totalGameTime: number): void {

@@ -55,6 +55,7 @@ export class RotationGameScreen extends GameScreen {
         if (this.screenState === "active" || this.rotGame?.isGameOver()) {
             this.totalGameTime += dt;
             this.rotGame?.update(dt, this.totalGameTime);
+            this.rotGame?.getIconUnlockDisplay().update(this.totalGameTime, dt);
         }
 
         // Port of RotationGameScreen.Update game-over flow: show statistics,
@@ -135,6 +136,7 @@ export class RotationGameScreen extends GameScreen {
             }
             game.getPraising().draw(hudVisibility);
             game.getCountdown().draw(hudVisibility);
+            game.getIconUnlockDisplay().draw(hudVisibility);
 
             // Port of the Challenge icon stack (spriteBatch block).
             if (game.getGameMode() === "Challenge") {

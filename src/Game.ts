@@ -33,6 +33,11 @@ const GAME_NAME = "Superquadriddle";
 
 const ICON_CATEGORIES = ["Common Flags", "Uncommon Flags", "Food", "Mix"];
 
+interface IconManifestEntry {
+    name: string;
+    file: string;
+}
+
 export class Game {
     public readonly canvas: HTMLCanvasElement;
     public readonly renderer: WebGLRenderer;
@@ -96,6 +101,9 @@ export class Game {
             drawStackIcon: (image, x, y, size, alpha) => {
                 this.drawStackIcon(image, x, y, size, alpha);
             },
+            drawUnlockIcon: (image, alpha) => {
+                this.drawUnlockIcon(image, alpha);
+            },
         };
         this.context = context;
         this.screenManager = new ScreenManager(context);
@@ -113,6 +121,7 @@ export class Game {
         this.background.startAnimation(0, new Vec4(1, 0.7, 0.2, 1), new Vec4(0.2, 0.2, 0.2, 1));
 
         this.initIconPreviewCanvas();
+        this.initUnlockCanvas();
         this.resize();
         window.addEventListener("resize", () => this.resize());
         window.addEventListener("keydown", (e) => this.handleKey(e, true));
@@ -235,6 +244,58 @@ export class Game {
         this.previewCtx?.clearRect(0, 0, this.previewSize, this.previewSize);
     }
 
+    /** Canvas for the unlock-icon flash at (199,815) 128x128. */
+    private unlockCanvas: HTMLCanvasElement | undefined;
+    private unlockCtx: CanvasRenderingContext2D | undefined;
+    private readonly unlockBackbufferY = 815;
+
+    private initUnlockCanvas(): void {
+        const canvas = document.createElement("canvas");
+        canvas.id = "icon-unlock";
+        canvas.width = this.previewSize;
+        canvas.height = this.previewSize;
+        canvas.style.position = "absolute";
+        canvas.style.pointerEvents = "none";
+        canvas.style.imageRendering = "pixelated";
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext("2d");
+        if (ctx === null) {
+            throw new Error("No 2D context for unlock display");
+        }
+        this.unlockCanvas = canvas;
+        this.unlockCtx = ctx;
+        this.updateUnlockLayout();
+    }
+
+    private updateUnlockLayout(): void {
+        const canvas = this.unlockCanvas;
+        if (canvas === undefined) {
+            return;
+        }
+        const scale = this.viewportW / this.previewBackbufferWidth;
+        canvas.style.left = `${this.viewportX + this.previewBackbufferX * scale}px`;
+        canvas.style.top = `${this.viewportY + this.unlockBackbufferY * scale}px`;
+        canvas.style.width = `${this.previewSize * scale}px`;
+        canvas.style.height = `${this.previewSize * scale}px`;
+    }
+
+    private drawUnlockIcon(image: IconImage, alpha: number): void {
+        const ctx = this.unlockCtx;
+        if (ctx === undefined) {
+            return;
+        }
+        ctx.clearRect(0, 0, this.previewSize, this.previewSize);
+        const bitmap = this.previewBitmapCache.get(image);
+        if (bitmap === undefined) {
+            void this.getPreviewBitmap(image);
+            return;
+        }
+        ctx.globalAlpha = alpha;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(bitmap, 0, 0, this.previewSize, this.previewSize);
+        ctx.globalAlpha = 1;
+    }
+
     /** Draws a Challenge stack icon in backbuffer coordinates. */
     private drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void {
         const ctx = this.previewCtx;
@@ -310,16 +371,17 @@ export class Game {
     }
 
     /** Icon file list cache per category (from /icons/manifest.json). */
-    private iconListCache = new Map<string, Promise<string[]>>();
+    private iconListCache = new Map<string, Promise<IconManifestEntry[]>>();
+    private iconNameCache = new Map<string, string>();
 
-    private loadIconList(category: string): Promise<string[]> {
+    private loadIconList(category: string): Promise<IconManifestEntry[]> {
         const cached = this.iconListCache.get(category);
         if (cached !== undefined) {
             return cached;
         }
         const promise = (async () => {
             const response = await fetch("/icons/manifest.json");
-            const manifest = (await response.json()) as Record<string, string[]>;
+            const manifest = (await response.json()) as Record<string, IconManifestEntry[]>;
             return manifest[category] ?? [];
         })();
         this.iconListCache.set(category, promise);
@@ -335,15 +397,25 @@ export class Game {
         const host: RotationGameHost = {
             font: this.font,
             loadIcon: async (category: string, index: number) => {
-                const files = await this.loadIconList(category);
+                const entries = await this.loadIconList(category);
                 // Manifest entries already include the subfolder (e.g.
                 // "flags/hn.png" or "cake.png"), so use them as-is.
-                const file = files[index] ?? "";
-                const image = await loadIconImage(`/assets/icons/${file}`);
+                const entry = entries[index];
+                const image = await loadIconImage(`/assets/icons/${entry?.file ?? ""}`);
                 // Prepare the preview bitmap synchronously after load so the
                 // HUD can draw it the same frame.
                 await this.getPreviewBitmap(image);
+                if (entry !== undefined) {
+                    this.iconNameCache.set(`${category}:${index}`, entry.name);
+                }
                 return image;
+            },
+            getIconName: (category: string, index: number) => {
+                return this.iconNameCache.get(`${category}:${index}`) ?? "?";
+            },
+            getNumIconsUnlocked: (categoryIndex: number) => this.userConfig.getNumIconsUnlocked(categoryIndex),
+            unlockIcon: (categoryIndex: number) => {
+                this.userConfig.unlockIcon(categoryIndex);
             },
             getNumIcons: (category: string) => this.numIconsFor(category),
             drawIconPreview: (current, previous, alphaCurrent, alphaPrevious) => {
@@ -351,6 +423,9 @@ export class Game {
             },
             drawStackIcon: (image, x, y, size, alpha) => {
                 this.drawStackIcon(image, x, y, size, alpha);
+            },
+            drawUnlockIcon: (image, alpha) => {
+                this.drawUnlockIcon(image, alpha);
             },
             startBackgroundAnimation: (color) => {
                 // Only the grid background is visible during the game.
