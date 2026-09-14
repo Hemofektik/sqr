@@ -76,6 +76,11 @@ export class MenuScreen extends GameScreen {
             this.menuEntries[this.selectedEntry]?.selected(this.menuEntries[this.selectedEntry] as MenuEntryDef);
         } else if (action === "cancel") {
             this.onBackRequest();
+        } else if (action === "left" || action === "right") {
+            // Port of MenuScreen.HandleInput: MenuLeft/MenuRight trigger the
+            // selected entry (OptionsMenuScreen relies on this to cycle its
+            // sliders, and RotationGameModeScreen its category).
+            this.menuEntries[this.selectedEntry]?.selected(this.menuEntries[this.selectedEntry] as MenuEntryDef);
         }
     }
 

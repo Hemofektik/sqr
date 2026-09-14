@@ -138,7 +138,8 @@ export class RotationGameModeScreen extends MenuScreen {
         if (categories.length === 0) {
             return;
         }
-        this.categoryIndex = Math.max(0, Math.min(categories.length - 1, this.categoryIndex));
+        // Port of UpdateMenuEntries: the index wraps modulo the count.
+        this.categoryIndex = (this.categoryIndex + categories.length) % categories.length;
         const entry = this.menuEntries[0];
         if (entry !== undefined) {
             entry.text = `Category: ${categories[this.categoryIndex] ?? ""}`;
