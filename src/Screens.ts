@@ -711,6 +711,10 @@ export class GalleryScreen extends GameScreen {
         }
         this.categoryIndex = (this.categoryIndex + categories.length + delta) % categories.length;
         this.selectedImageIndex = 0;
+        // Drop the old icons immediately so the loading spinner shows.
+        this.images = [];
+        this.floatingRowIndex = 0;
+        this.firstRowIndex = 0;
         void this.loadCategory();
     }
 
@@ -788,9 +792,10 @@ export class GalleryScreen extends GameScreen {
             this.spinner.update(ctx.gameTime);
             ctx.renderScene(this.spinner.scene, this.spinner.camera, 0.2, 0.9);
             const loadFontColor = new Vec4(1, 1, 1, alpha);
+            // Centered inside the orbiting ring.
             font.addText(
                 "Loading...",
-                new Vec3(-0.35, -0.2, -1).multiplyScalar(60),
+                new Vec3(-1.1, -1.5, -1).multiplyScalar(30),
                 1,
                 loadFontColor,
                 new Vec4(0, 0, 0, alpha),
