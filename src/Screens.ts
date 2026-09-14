@@ -673,8 +673,6 @@ export class GalleryScreen extends GameScreen {
     // Port of numFilesOnScreenX/Y: the grid is 17 columns x 7 rows.
     private static readonly NUM_FILES_ON_SCREEN_X = 17;
     private static readonly NUM_FILES_ON_SCREEN_Y = 7;
-    private static readonly NUM_FILES_ON_SCREEN =
-        GalleryScreen.NUM_FILES_ON_SCREEN_X * GalleryScreen.NUM_FILES_ON_SCREEN_Y;
 
     private floatingRowIndex = 0;
     private firstRowIndex = 0;
@@ -807,12 +805,13 @@ export class GalleryScreen extends GameScreen {
 
         if (alpha > 0.001) {
             // Smooth scroll: keep the selected row visible, scrolling only
-            // when it leaves the window (the grid shows 7 rows).
-            const targetRowIndex = Math.floor(this.selectedImageIndex / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
-            const maxFirstRow = Math.max(
-                0,
-                Math.ceil(numIcons / GalleryScreen.NUM_FILES_ON_SCREEN_Y) - GalleryScreen.NUM_FILES_ON_SCREEN_Y,
-            );
+            // when it leaves the window (the grid shows 7 rows). The grid is
+            // column-major (x = n / 7, y = n % 7), so scrolling by a row means
+            // offsetting the row index inside each column - skipping items
+            // contiguously would hide whole columns.
+            const targetRowIndex = this.selectedImageIndex % GalleryScreen.NUM_FILES_ON_SCREEN_Y;
+            const numColumns = Math.ceil(numIcons / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
+            const maxFirstRow = Math.max(0, GalleryScreen.NUM_FILES_ON_SCREEN_Y - Math.min(GalleryScreen.NUM_FILES_ON_SCREEN_Y, numIcons - (numColumns - 1) * GalleryScreen.NUM_FILES_ON_SCREEN_Y));
             const targetFirstRow = Math.max(0, Math.min(maxFirstRow, targetRowIndex));
             this.floatingRowIndex += (targetFirstRow - this.floatingRowIndex) * Math.min(1, ctx.dt * 5);
             this.firstRowIndex = Math.round(this.floatingRowIndex);
@@ -820,40 +819,51 @@ export class GalleryScreen extends GameScreen {
             const names = this.manager?.context.getIconNames(category) ?? [];
             this.iconName = names[this.selectedImageIndex] ?? "";
 
-            let fileCount = 0;
-            for (
-                let n = this.firstRowIndex * GalleryScreen.NUM_FILES_ON_SCREEN_Y;
-                n < numIcons && fileCount < GalleryScreen.NUM_FILES_ON_SCREEN;
-                n++, fileCount++
-            ) {
-                const image = this.images[n];
-                if (image === undefined) {
-                    continue;
-                }
-                const isSelected = this.selectedImageIndex === n;
-                const isLocked = n >= numUnlockedIcons;
+            // Iterate the visible window column by column, offsetting the row
+            // index within each column by firstRowIndex.
+            const numVisibleColumns = Math.min(
+                GalleryScreen.NUM_FILES_ON_SCREEN_X,
+                numColumns - 0,
+            );
+            for (let col = 0; col < numVisibleColumns; col++) {
+                const columnStart = col * GalleryScreen.NUM_FILES_ON_SCREEN_Y;
+                const columnSize = Math.min(
+                    GalleryScreen.NUM_FILES_ON_SCREEN_Y,
+                    numIcons - columnStart,
+                );
+                for (let row = this.firstRowIndex; row < columnSize; row++) {
+                    const n = columnStart + row;
+                    if (n >= numIcons || n < 0) {
+                        continue;
+                    }
+                    const image = this.images[n];
+                    if (image === undefined) {
+                        continue;
+                    }
+                    const isSelected = this.selectedImageIndex === n;
+                    const isLocked = n >= numUnlockedIcons;
 
-                const x = Math.floor(n / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
-                const y = n % GalleryScreen.NUM_FILES_ON_SCREEN_Y;
+                    // Grid position: the row is drawn relative to the scroll
+                    // offset so items slide up as the window moves.
+                    const drawRow = row - this.firstRowIndex;
 
-                let a = alpha;
-                let height = 64;
-                let offsetX = x * 80 + 230;
-                let offsetY = y * 80 + 270;
+                    let a = alpha;
+                    let height = 64;
+                    let offsetX = col * 80 + 230;
+                    let offsetY = drawRow * 80 + 270;
 
-                if (isSelected) {
-                    const pulseValue = Math.sin(ctx.gameTime * 3) * 5;
-                    offsetX -= pulseValue;
-                    offsetY -= pulseValue;
-                    height += pulseValue * 2;
-                } else {
-                    a *= 1;
-                }
+                    if (isSelected) {
+                        const pulseValue = Math.sin(ctx.gameTime * 3) * 5;
+                        offsetX -= pulseValue;
+                        offsetY -= pulseValue;
+                        height += pulseValue * 2;
+                    }
 
-                if (isLocked) {
-                    ctx.drawLockedIcon(offsetX, offsetY, height, a);
-                } else {
-                    ctx.drawGalleryIcon(image, offsetX, offsetY, height, a);
+                    if (isLocked) {
+                        ctx.drawLockedIcon(offsetX, offsetY, height, a);
+                    } else {
+                        ctx.drawGalleryIcon(image, offsetX, offsetY, height, a);
+                    }
                 }
             }
         }
