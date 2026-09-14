@@ -20,6 +20,7 @@ export type ScreenKind =
 
 import type { SQFont } from "./SQFont.ts";
 import type { Camera, Scene } from "three";
+import type { IconImage } from "./RotationGame.ts";
 
 export interface ScreenContext {
     /** Total game time in seconds. */
@@ -43,6 +44,8 @@ export interface ScreenContext {
     viewportHeight: number;
     /** Renders a 3D scene into the given depth band (vpMain style). */
     renderScene(scene: Scene, camera: Camera, minDepth: number, maxDepth: number): void;
+    /** Draws the 2D icon preview into the HUD corner. */
+    drawIconPreview(current: IconImage, previous: IconImage | undefined, alphaCurrent: number, alphaPrevious: number): void;
 }
 
 export abstract class GameScreen {

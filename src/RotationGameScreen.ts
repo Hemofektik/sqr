@@ -118,6 +118,17 @@ export class RotationGameScreen extends GameScreen {
         // HUD (vpForeGround) is drawn by the individual boards via the font.
         const hudVisibility = game.getHudVisibility();
         if (hudVisibility > 0.001) {
+            // 2D icon preview (port of the spriteBatch block).
+            const preview = game.getIconPreview();
+            if (preview !== undefined) {
+                ctx.drawIconPreview(
+                    preview.current,
+                    preview.previous,
+                    preview.alphaCurrent * hudVisibility,
+                    preview.alphaPrevious * hudVisibility,
+                );
+            }
+
             game.getScoreBoard().draw(hudVisibility);
             game.getTimeBoard().draw(hudVisibility);
             game.getPraising().draw(hudVisibility);

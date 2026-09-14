@@ -30,8 +30,12 @@ export interface RotationGameHost {
     /** Loads an icon image by category and index (browser texture loading). */
     loadIcon(category: string, index: number): Promise<IconImage>;
     getNumIcons(category: string): Promise<number>;
-    /** Draws a 2D icon into the HUD corner (browser canvas overlay). */
-    drawIconPreview(image: IconImage, alpha: number): void;
+    /**
+     * Draws the 2D icon preview into the HUD corner (128x128 rect at
+     * (199,115) in the 1280x720 backbuffer, point-clamped sampling). During
+     * the icon transition current and previous are drawn crossfaded.
+     */
+    drawIconPreview(current: IconImage, previous: IconImage | undefined, alphaCurrent: number, alphaPrevious: number): void;
     /** Starts the game background color animation on the global clock. */
     startBackgroundAnimation(color: Vec4): void;
 }
@@ -79,6 +83,7 @@ export class RotationGame {
     private numIcons = 0;
 
     private iconImage: IconImage | undefined;
+    private prevIconImage: IconImage | undefined;
 
     private readonly camFuzzingAnimation = new Animation(1);
     private camFuzzingPitch = 0;
@@ -168,8 +173,9 @@ export class RotationGame {
         }
     }
 
-    /** Port of LoadNewIcon (async because textures load in the browser). */
+    /** Port of LoadNewIcon: prevIconTex = iconTex before loading the new one. */
     private async loadNewIcon(totalGameTime: number): Promise<void> {
+        this.prevIconImage = this.iconImage;
         const index = this.randomIconIndex[this.currentIconIndex];
         if (index === undefined) {
             return;
@@ -398,6 +404,21 @@ export class RotationGame {
 
     public getTimeUpBounce(progress: number): number {
         return 1 - this.timeUpCurve.evaluate(progress * 3);
+    }
+
+    /** Icon preview crossfade state (port of the HUD spriteBatch block). */
+    public getIconPreview(): { current: IconImage; previous: IconImage | undefined; alphaCurrent: number; alphaPrevious: number } | undefined {
+        const current = this.iconImage;
+        if (current === undefined) {
+            return undefined;
+        }
+        if (this.camFuzzingAnimation.isRunning) {
+            // Gamma-corrected crossfade (pow(x, 1/2.2)) between the icons.
+            const alphaIconTex = Math.pow(this.camFuzzingAnimation.progress, 1 / 2.2);
+            const alphaPrevIconTex = Math.pow(1 - this.camFuzzingAnimation.progress, 1 / 2.2);
+            return { current, previous: this.prevIconImage, alphaCurrent: alphaIconTex, alphaPrevious: alphaPrevIconTex };
+        }
+        return { current, previous: undefined, alphaCurrent: 1, alphaPrevious: 0 };
     }
 
     public getFov(): number {

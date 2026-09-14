@@ -9,7 +9,7 @@ import type { ScreenContext, GameScreen } from "./ScreenManager.ts";
 import { MenuScreen } from "./MenuScreen.ts";
 import { loadIconImage } from "./IconProvider.ts";
 import { RotationGameScreen } from "./RotationGameScreen.ts";
-import type { RotationGameHost } from "./RotationGame.ts";
+import type { IconImage, RotationGameHost } from "./RotationGame.ts";
 import {
     MainMenuScreen,
     MessageBoxScreen,
@@ -85,6 +85,9 @@ export class Game {
                 this.renderer.render(scene, camera);
                 gl.depthRange(0, 0.4);
             },
+            drawIconPreview: (current, previous, alphaCurrent, alphaPrevious) => {
+                this.drawIconPreview(current, previous, alphaCurrent, alphaPrevious);
+            },
         };
         this.context = context;
         this.screenManager = new ScreenManager(context);
@@ -101,6 +104,7 @@ export class Game {
 
         this.background.startAnimation(0, new Vec4(1, 0.7, 0.2, 1), new Vec4(0.2, 0.2, 0.2, 1));
 
+        this.initIconPreviewCanvas();
         this.resize();
         window.addEventListener("resize", () => this.resize());
         window.addEventListener("keydown", (e) => this.handleKey(e, true));
@@ -173,6 +177,105 @@ export class Game {
 
     private toastTimer = 0;
 
+    /**
+     * 2D icon preview overlay: the original drew the icon texture into a
+     * 128x128 rect at (199,115) of the 1280x720 backbuffer with point-clamp
+     * sampling. We replicate it with a 2D canvas layered above the WebGL one,
+     * scaled with the letterbox viewport.
+     */
+    private previewCanvas: HTMLCanvasElement | undefined;
+    private previewCtx: CanvasRenderingContext2D | undefined;
+    private readonly previewBackbufferWidth = 1280;
+    private readonly previewBackbufferHeight = 720;
+
+    private initIconPreviewCanvas(): void {
+        const canvas = document.createElement("canvas");
+        canvas.id = "icon-preview";
+        canvas.width = this.previewBackbufferWidth;
+        canvas.height = this.previewBackbufferHeight;
+        canvas.style.position = "absolute";
+        canvas.style.pointerEvents = "none";
+        canvas.style.imageRendering = "pixelated";
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext("2d");
+        if (ctx === null) {
+            throw new Error("No 2D context for icon preview");
+        }
+        this.previewCanvas = canvas;
+        this.previewCtx = ctx;
+        this.updatePreviewLayout();
+    }
+
+    private updatePreviewLayout(): void {
+        const canvas = this.previewCanvas;
+        if (canvas === undefined) {
+            return;
+        }
+        // Map the backbuffer rect into letterboxed window pixels.
+        const scale = this.viewportW / this.previewBackbufferWidth;
+        canvas.style.left = `${this.viewportX + 199 * scale}px`;
+        canvas.style.top = `${this.viewportY + 115 * scale}px`;
+        canvas.style.width = `${128 * scale}px`;
+        canvas.style.height = `${128 * scale}px`;
+    }
+
+    /** Port of the HUD spriteBatch icon-preview block. */
+    private drawIconPreview(
+        current: IconImage,
+        previous: IconImage | undefined,
+        alphaCurrent: number,
+        alphaPrevious: number,
+    ): void {
+        const ctx = this.previewCtx;
+        if (ctx === undefined) {
+            return;
+        }
+        ctx.clearRect(0, 0, this.previewBackbufferWidth, this.previewBackbufferHeight);
+        if (previous !== undefined && alphaPrevious > 0.001) {
+            this.drawIconToPreview(ctx, previous, alphaPrevious);
+        }
+        if (alphaCurrent > 0.001) {
+            this.drawIconToPreview(ctx, current, alphaCurrent);
+        }
+    }
+
+    private previewBitmapCache = new Map<IconImage, ImageBitmap | HTMLCanvasElement>();
+
+    private async getPreviewBitmap(image: IconImage): Promise<ImageBitmap | HTMLCanvasElement> {
+        const cached = this.previewBitmapCache.get(image);
+        if (cached !== undefined) {
+            return cached;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext("2d");
+        if (ctx === null) {
+            throw new Error("No 2D context for icon bitmap");
+        }
+        ctx.putImageData(new ImageData(image.data.slice(), image.width, image.height), 0, 0);
+        this.previewBitmapCache.set(image, canvas);
+        return canvas;
+    }
+
+    private drawIconToPreview(
+        ctx: CanvasRenderingContext2D,
+        image: IconImage,
+        alpha: number,
+    ): void {
+        const bitmap = this.previewBitmapCache.get(image);
+        // Only draw from the synchronous cache; bitmaps are prepared on load.
+        if (bitmap === undefined) {
+            void this.getPreviewBitmap(image);
+            return;
+        }
+        ctx.globalAlpha = alpha;
+        // PointClamp: disable smoothing for the pixelated upscale.
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(bitmap, 199, 115, 128, 128);
+        ctx.globalAlpha = 1;
+    }
+
     /** Icon file list cache per category (from /icons/manifest.json). */
     private iconListCache = new Map<string, Promise<string[]>>();
 
@@ -203,11 +306,15 @@ export class Game {
                 // Manifest entries already include the subfolder (e.g.
                 // "flags/hn.png" or "cake.png"), so use them as-is.
                 const file = files[index] ?? "";
-                return loadIconImage(`/assets/icons/${file}`);
+                const image = await loadIconImage(`/assets/icons/${file}`);
+                // Prepare the preview bitmap synchronously after load so the
+                // HUD can draw it the same frame.
+                await this.getPreviewBitmap(image);
+                return image;
             },
             getNumIcons: (category: string) => this.numIconsFor(category),
-            drawIconPreview: () => {
-                // The 2D icon preview overlay is not ported yet.
+            drawIconPreview: (current, previous, alphaCurrent, alphaPrevious) => {
+                this.drawIconPreview(current, previous, alphaCurrent, alphaPrevious);
             },
             startBackgroundAnimation: (color) => {
                 // Only the grid background is visible during the game.
@@ -265,6 +372,7 @@ export class Game {
             this.context.viewportWidth = this.viewportW;
             this.context.viewportHeight = this.viewportH;
         }
+        this.updatePreviewLayout();
     }
 
     private handleKey(event: KeyboardEvent, down: boolean): void {

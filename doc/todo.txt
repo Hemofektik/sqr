@@ -1,7 +1,15 @@
-
 Super Quadric Riddle >>> Super Quadriddle
 
 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> TODO essentials:
+
+
+	- XNA to TS Port: 
+			Known remaining gaps (not regressions, just unported features): 
+				- the 2D icon preview in the game HUD
+				- the Challenge-mode icon stack
+				- icon unlocking
+				- audio. 
+				- The Gallery is a simplified category summary rather than the full icon grid.
 
 	Game1: http://www.bobblebrook.com/games/coign-of-vantage
 
@@ -52,15 +60,15 @@ Super Quadric Riddle >>> Super Quadriddle
 		-	think about online highscores (XBLIG Community API)
 
 		-	Creating Great Community Games
-			-	Consider “signing in” by pressing A or Start
+			-	Consider ï¿½signing inï¿½ by pressing A or Start
 			-	display a screen that sells your game
-			-	If only one mode, use “Start Game”
+			-	If only one mode, use ï¿½Start Gameï¿½
 			-	Display brief tutorial, !!!controls!!!, tips
 			-	Purchase Full Game in ingame options menu
 			-	START pauses, and BACK brings up scoreboard (what does back do atm?)
 			-	Unplugged controller should pause game
 		-	xna best practices
-			-	Test different speaker configurations – headphones, stereo, 5.1, etc.
+			-	Test different speaker configurations ï¿½ headphones, stereo, 5.1, etc.
 			-	test 480p, 720p display settings
 			-	Make sure the game respects Game.IsActive and pauses as appropriate when this is set to true, such as when the guide is being displayed over the game.
 			-	test what happens on SignedInGamer.SignedOut
@@ -95,18 +103,18 @@ Super Quadric Riddle >>> Super Quadriddle
 
 	- Bloco Loco
 		- Bloco = Block
-		- Loco = crazy, verrückt, (Amer.) bekloppt
+		- Loco = crazy, verrï¿½ckt, (Amer.) bekloppt
 		-> Bloco
 		    loco
 		-> to be loco
 
 	- Cubissimo
 
-	- QbD³	QuBeD³
+	- QbDï¿½	QuBeDï¿½
 		- cubed = adj. [math.] -> hoch drei 
-			  adj. -> in Würfel geschnitten 
-		- d³ = 3 Dimensionen
-		- Volumen = Seitenlänge hoch 3 = (x*y*z) = 3D
+			  adj. -> in Wï¿½rfel geschnitten 
+		- dï¿½ = 3 Dimensionen
+		- Volumen = Seitenlï¿½nge hoch 3 = (x*y*z) = 3D
 		
 	- more Ideas
 		- Tetra
@@ -114,12 +122,12 @@ Super Quadric Riddle >>> Super Quadriddle
 		- Pixel
 			- pixeliced
 		- Dice
-			- to dice = etwas würfeln, auch beim Kochen
+			- to dice = etwas wï¿½rfeln, auch beim Kochen
 		- cubic	
 		- slice
 
 		- iconize
-		- un/de-dice (im sinne von entwürfeln)
+		- un/de-dice (im sinne von entwï¿½rfeln)
 
 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  Teamname:
 
