@@ -21,6 +21,7 @@ export type ScreenKind =
 import type { SQFont } from "./SQFont.ts";
 import type { Camera, Scene } from "three";
 import type { IconImage } from "./RotationGame.ts";
+import type { UserConfig } from "./UserConfig.ts";
 
 export interface ScreenContext {
     /** Total game time in seconds. */
@@ -35,6 +36,8 @@ export interface ScreenContext {
     getNumIcons(category: string): Promise<number>;
     /** Number of icons unlocked in a category. */
     getNumIconsUnlocked(categoryIndex: number): number;
+    /** The player's persisted settings. */
+    userConfig: UserConfig;
     /** Show a transient toast message. */
     showToast(message: string): void;
     /** The superquadric font used for all screen text. */

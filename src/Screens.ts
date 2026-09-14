@@ -111,7 +111,11 @@ export class RotationGameModeScreen extends MenuScreen {
     ) {
         super("Game Mode");
         this.onStartGame = onStartGame;
-        this.selectedEntry = 1;
+        // Port of the constructor: category and selected entry come from the
+        // UserConfig, and the selected game mode is written back on launch.
+        const config = this.manager?.context.userConfig;
+        this.categoryIndex = config?.category ?? 0;
+        this.selectedEntry = Math.min(Math.max(config?.lastGameModeIndex ?? 1, 1), 3);
         this.menuEntries = [
             { text: "", selected: () => this.switchCategory() },
             { text: "Time Attack", selected: () => this.startGame(GameMode.TimeAttack) },
@@ -131,6 +135,11 @@ export class RotationGameModeScreen extends MenuScreen {
         const entry = this.menuEntries[0];
         if (entry !== undefined) {
             entry.text = `Category: ${categories[this.categoryIndex] ?? ""}`;
+        }
+        // Port of UpdateMenuEntries: MainUserConfig.Category is written back.
+        const config = this.manager?.context.userConfig;
+        if (config !== undefined) {
+            config.category = this.categoryIndex;
         }
     }
 
@@ -197,23 +206,26 @@ export class OptionsMenuScreen extends MenuScreen {
 
     public constructor() {
         super("Options");
+        // Port of OptionsMenuScreen: values come from UserConfigs.Instance.
+        const config = this.manager?.context.userConfig;
+        this.invertYAxis = config?.invertYAxis ?? false;
         const sfx: MenuEntryDef = {
             text: "SFX Volume",
             selected: () => this.toggleSlider(sfx),
-            slider: { value: 0.8, enabled: true },
+            slider: { value: config?.sfxVolume ?? 0.45, enabled: true },
         };
         const music: MenuEntryDef = {
             text: "Music Volume",
             selected: () => this.toggleSlider(music),
-            slider: { value: 0.7, enabled: true },
+            slider: { value: config?.musicVolume ?? 0.4, enabled: true },
         };
         const brightness: MenuEntryDef = {
             text: "Brightness",
             selected: () => this.toggleSlider(brightness),
-            slider: { value: 0.5, enabled: true },
+            slider: { value: config?.brightness ?? 0.5, enabled: true },
         };
         const invert: MenuEntryDef = {
-            text: "Invert Y-Axis: no",
+            text: `Invert Y-Axis: ${this.invertYAxis ? "yes" : "no"}`,
             selected: () => {
                 this.invertYAxis = !this.invertYAxis;
                 invert.text = `Invert Y-Axis: ${this.invertYAxis ? "yes" : "no"}`;
@@ -222,6 +234,7 @@ export class OptionsMenuScreen extends MenuScreen {
         const reset: MenuEntryDef = {
             text: "Reset Settings",
             selected: () => {
+                // Port of ResetSettings: restore the UserConfig defaults.
                 for (const e of [sfx, music, brightness]) {
                     if (e.slider !== undefined) {
                         e.slider.value = 0.5;
@@ -232,8 +245,32 @@ export class OptionsMenuScreen extends MenuScreen {
                 invert.text = "Invert Y-Axis: no";
             },
         };
-        const back: MenuEntryDef = { text: "Back", selected: () => this.onBackRequest() };
+        const back: MenuEntryDef = {
+            text: "Back",
+            // Port of OnCancelOptions: UpdateSettings().SaveToFile().
+            selected: () => {
+                this.applySettings(sfx, music, brightness);
+                this.onBackRequest();
+            },
+        };
         this.menuEntries = [sfx, music, brightness, invert, reset, back];
+    }
+
+    /** Port of OptionsMenuScreen.UpdateSettings + SaveToFile. */
+    private applySettings(
+        sfx: MenuEntryDef,
+        music: MenuEntryDef,
+        brightness: MenuEntryDef,
+    ): void {
+        const config = this.manager?.context.userConfig;
+        if (config === undefined) {
+            return;
+        }
+        config.invertYAxis = this.invertYAxis;
+        config.sfxVolume = sfx.slider?.enabled ? (sfx.slider?.value ?? 0) : 0;
+        config.musicVolume = music.slider?.enabled ? (music.slider?.value ?? 0) : 0;
+        config.brightness = brightness.slider?.enabled ? (brightness.slider?.value ?? 0) : 0.5;
+        config.save();
     }
 
     private toggleSlider(entry: MenuEntryDef): void {
@@ -256,11 +293,28 @@ export class OptionsMenuScreen extends MenuScreen {
             }
         }
 
+        // Port of OnCancel: save settings when the screen exits (the original
+        // saves in OnCancelOptions and the OnCancel override, covering both
+        // the Back entry and the cancel button).
+        if (this.screenState === "transitionOff" && !this.settingsSaved) {
+            this.settingsSaved = true;
+            this.applySettingsWithEntries();
+        }
+
         if (otherScreenHasFocus) {
             this.firstTimeStarted = true;
         } else if (this.firstTimeStarted) {
             this.firstTimeStarted = false;
             this.manager?.context.startBackgroundAnimation([0.6, 0.6, 0, 1], [0.3, 0.5, 0, 1]);
+        }
+    }
+
+    private settingsSaved = false;
+
+    private applySettingsWithEntries(): void {
+        const [sfx, music, brightness] = this.menuEntries;
+        if (sfx !== undefined && music !== undefined && brightness !== undefined) {
+            this.applySettings(sfx, music, brightness);
         }
     }
 }

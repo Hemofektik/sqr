@@ -44,6 +44,8 @@ export interface RotationGameHost {
     drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void;
     /** Starts the game background color animation on the global clock. */
     startBackgroundAnimation(color: Vec4): void;
+    /** The player's Invert Y-Axis setting (port of userConfig.InvertYAxis). */
+    invertYAxis: boolean;
 }
 
 export interface GameStatistics {
@@ -368,6 +370,8 @@ export class RotationGame {
         if (this.puzzleSolved) {
             return;
         }
+        // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
+        const invertYAxis = this.host.invertYAxis ? -1 : 1;
         const rotationSpeed = 5 * dt;
         const camYawAbs = Math.abs(this.camYaw);
         const camPitchAbs = Math.abs(this.camPitch);
@@ -375,7 +379,7 @@ export class RotationGame {
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
         this.camYaw += yawDelta * rotationSpeed * factor;
-        this.camPitch += pitchDelta * rotationSpeed * factor;
+        this.camPitch += pitchDelta * rotationSpeed * factor * invertYAxis;
 
         if (this.camYaw > Math.PI) this.camYaw -= Math.PI * 2;
         if (this.camYaw < -Math.PI) this.camYaw += Math.PI * 2;

@@ -10,6 +10,7 @@ import { MenuScreen } from "./MenuScreen.ts";
 import { loadIconImage } from "./IconProvider.ts";
 import { RotationGameScreen } from "./RotationGameScreen.ts";
 import type { GameMode, IconImage, RotationGameHost } from "./RotationGame.ts";
+import { UserConfig } from "./UserConfig.ts";
 import {
     MainMenuScreen,
     MessageBoxScreen,
@@ -38,6 +39,7 @@ export class Game {
     public readonly background: BackgroundScreen;
     public readonly font: SQFont;
     public readonly screenManager: ScreenManager;
+    public readonly userConfig: UserConfig;
     private context: ScreenContext | undefined;
     public gameTime = 0;
     private lastFrameMs = performance.now();
@@ -66,6 +68,8 @@ export class Game {
             this.renderer.render(scene, camera);
         });
 
+        this.userConfig = new UserConfig(ICON_CATEGORIES.length);
+
         const context: ScreenContext = {
             gameTime: 0,
             dt: 0,
@@ -74,7 +78,8 @@ export class Game {
             },
             getCategories: () => ICON_CATEGORIES,
             getNumIcons: (category) => this.numIconsFor(category),
-            getNumIconsUnlocked: () => 0,
+            getNumIconsUnlocked: (categoryIndex) => this.userConfig.getNumIconsUnlocked(categoryIndex),
+            userConfig: this.userConfig,
             showToast: (message) => this.showToast(message),
             font: this.font,
             viewportWidth: 0,
@@ -351,6 +356,7 @@ export class Game {
                 // Only the grid background is visible during the game.
                 this.background.startAnimation(this.gameTime, new Vec4(1, 1, 1, 1), color);
             },
+            invertYAxis: this.userConfig.invertYAxis,
         };
         this.screenManager.addScreen(new RotationGameScreen(
             gameMode,
