@@ -9,6 +9,7 @@ import type { ScreenContext } from "./ScreenManager.ts";
 import { MenuScreen } from "./MenuScreen.ts";
 import type { MenuEntryDef } from "./MenuScreen.ts";
 import { SuperQuadric } from "./SuperQuadric.ts";
+import { LoadingSpinner } from "./LoadingSpinner.ts";
 import type { IconImage } from "./RotationGame.ts";
 import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
 
@@ -679,6 +680,7 @@ export class GalleryScreen extends GameScreen {
     private firstRowIndex = 0;
     private iconName = "";
     private images: IconImage[] = [];
+    private readonly spinner = new LoadingSpinner();
 
     public constructor() {
         super();
@@ -779,6 +781,25 @@ export class GalleryScreen extends GameScreen {
         // Grid of icons (drawn on the 2D overlay in backbuffer coordinates).
         ctx.clearGallery();
         const alpha = 1 - this.transitionPosition;
+
+        // While the icons load, animate a superquadric ring as a loading
+        // indicator.
+        if (this.images.length === 0) {
+            this.spinner.update(ctx.gameTime);
+            ctx.renderScene(this.spinner.scene, this.spinner.camera, 0.2, 0.9);
+            const loadFontColor = new Vec4(1, 1, 1, alpha);
+            font.addText(
+                "Loading...",
+                new Vec3(-0.35, -0.2, -1).multiplyScalar(60),
+                1,
+                loadFontColor,
+                new Vec4(0, 0, 0, alpha),
+            );
+            setupFontCamera(font, new Vec3(0, 0, 1));
+            font.flush(true);
+            return;
+        }
+
         if (alpha > 0.001) {
             // Smooth scroll towards the selected row.
             const targetRowIndex = Math.floor(this.selectedImageIndex / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
