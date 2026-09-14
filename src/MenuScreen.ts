@@ -172,7 +172,9 @@ export class MenuScreen extends GameScreen {
         const sliderStartX = xPos + 1.2;
 
         font.addText("(", new Vec3(sliderStartX * Z_DEPTH, entryY * Z_DEPTH, -1 * Z_DEPTH), 1, fontColor, emissiveColor);
-        font.addText(")", new Vec3((sliderStartX + 1.21 + sliderWidth) * Z_DEPTH, entryY * Z_DEPTH, -1 * Z_DEPTH), 1, fontColor, emissiveColor);
+        // Original: new Vector3(xPos + 1.21f + sliderWidth, ...) - relative to
+        // xPos, not to sliderStartX.
+        font.addText(")", new Vec3((xPos + 1.21 + sliderWidth) * Z_DEPTH, entryY * Z_DEPTH, -1 * Z_DEPTH), 1, fontColor, emissiveColor);
 
         const green = new Vec4(0, 0.502, 0, fadeValue); // XNA Color.Green = (0,128,0)
         const yellow = new Vec4(1, 1, 0, fadeValue);
