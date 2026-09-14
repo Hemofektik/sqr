@@ -79,7 +79,13 @@ export abstract class GameScreen {
 
     public bind(manager: ScreenManager): void {
         this.manager = manager;
+        // Port of LoadContent timing: screens read manager-owned state (e.g.
+        // UserConfig) after being registered, not in their constructor.
+        this.onBound();
     }
+
+    /** Called once the screen is registered with the manager. */
+    protected onBound(): void {}
 
     public exitScreen(): void {
         this.screenState = "transitionOff";

@@ -111,11 +111,6 @@ export class RotationGameModeScreen extends MenuScreen {
     ) {
         super("Game Mode");
         this.onStartGame = onStartGame;
-        // Port of the constructor: category and selected entry come from the
-        // UserConfig, and the selected game mode is written back on launch.
-        const config = this.manager?.context.userConfig;
-        this.categoryIndex = config?.category ?? 0;
-        this.selectedEntry = Math.min(Math.max(config?.lastGameModeIndex ?? 1, 1), 3);
         this.menuEntries = [
             { text: "", selected: () => this.switchCategory() },
             { text: "Time Attack", selected: () => this.startGame(GameMode.TimeAttack) },
@@ -123,6 +118,18 @@ export class RotationGameModeScreen extends MenuScreen {
             { text: "Free Play", selected: () => this.startGame(GameMode.FreePlay) },
             { text: "Back", selected: () => this.onBackRequest() },
         ];
+        this.refreshCategoryEntry();
+    }
+
+    /** Port of the constructor: category and selected entry come from the
+     * UserConfig, and the selected game mode is written back on launch. */
+    protected override onBound(): void {
+        const config = this.manager?.context.userConfig;
+        if (config === undefined) {
+            return;
+        }
+        this.categoryIndex = config.category;
+        this.selectedEntry = Math.min(Math.max(config.lastGameModeIndex, 1), 3);
         this.refreshCategoryEntry();
     }
 
@@ -206,26 +213,23 @@ export class OptionsMenuScreen extends MenuScreen {
 
     public constructor() {
         super("Options");
-        // Port of OptionsMenuScreen: values come from UserConfigs.Instance.
-        const config = this.manager?.context.userConfig;
-        this.invertYAxis = config?.invertYAxis ?? false;
         const sfx: MenuEntryDef = {
             text: "SFX Volume",
             selected: () => this.toggleSlider(sfx),
-            slider: { value: config?.sfxVolume ?? 0.45, enabled: true },
+            slider: { value: 0.45, enabled: true },
         };
         const music: MenuEntryDef = {
             text: "Music Volume",
             selected: () => this.toggleSlider(music),
-            slider: { value: config?.musicVolume ?? 0.4, enabled: true },
+            slider: { value: 0.4, enabled: true },
         };
         const brightness: MenuEntryDef = {
             text: "Brightness",
             selected: () => this.toggleSlider(brightness),
-            slider: { value: config?.brightness ?? 0.5, enabled: true },
+            slider: { value: 0.5, enabled: true },
         };
         const invert: MenuEntryDef = {
-            text: `Invert Y-Axis: ${this.invertYAxis ? "yes" : "no"}`,
+            text: "Invert Y-Axis: no",
             selected: () => {
                 this.invertYAxis = !this.invertYAxis;
                 invert.text = `Invert Y-Axis: ${this.invertYAxis ? "yes" : "no"}`;
@@ -254,6 +258,37 @@ export class OptionsMenuScreen extends MenuScreen {
             },
         };
         this.menuEntries = [sfx, music, brightness, invert, reset, back];
+        this.sfxEntry = sfx;
+        this.musicEntry = music;
+        this.brightnessEntry = brightness;
+        this.invertEntry = invert;
+    }
+
+    private readonly sfxEntry: MenuEntryDef;
+    private readonly musicEntry: MenuEntryDef;
+    private readonly brightnessEntry: MenuEntryDef;
+    private readonly invertEntry: MenuEntryDef;
+
+    /** Port of LoadContent: read the current settings from UserConfig. */
+    protected override onBound(): void {
+        const config = this.manager?.context.userConfig;
+        if (config === undefined) {
+            return;
+        }
+        this.invertYAxis = config.invertYAxis;
+        if (this.sfxEntry.slider !== undefined) {
+            this.sfxEntry.slider.value = config.sfxVolume;
+            this.sfxEntry.slider.enabled = config.sfxVolume > 0;
+        }
+        if (this.musicEntry.slider !== undefined) {
+            this.musicEntry.slider.value = config.musicVolume;
+            this.musicEntry.slider.enabled = config.musicVolume > 0;
+        }
+        if (this.brightnessEntry.slider !== undefined) {
+            this.brightnessEntry.slider.value = config.brightness;
+            this.brightnessEntry.slider.enabled = config.brightness !== 0.5;
+        }
+        this.invertEntry.text = `Invert Y-Axis: ${this.invertYAxis ? "yes" : "no"}`;
     }
 
     /** Port of OptionsMenuScreen.UpdateSettings + SaveToFile. */
