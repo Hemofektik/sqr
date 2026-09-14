@@ -806,9 +806,15 @@ export class GalleryScreen extends GameScreen {
         }
 
         if (alpha > 0.001) {
-            // Smooth scroll towards the selected row.
+            // Smooth scroll: keep the selected row visible, scrolling only
+            // when it leaves the window (the grid shows 7 rows).
             const targetRowIndex = Math.floor(this.selectedImageIndex / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
-            this.floatingRowIndex += (targetRowIndex - this.floatingRowIndex) * Math.min(1, ctx.dt * 5);
+            const maxFirstRow = Math.max(
+                0,
+                Math.ceil(numIcons / GalleryScreen.NUM_FILES_ON_SCREEN_Y) - GalleryScreen.NUM_FILES_ON_SCREEN_Y,
+            );
+            const targetFirstRow = Math.max(0, Math.min(maxFirstRow, targetRowIndex));
+            this.floatingRowIndex += (targetFirstRow - this.floatingRowIndex) * Math.min(1, ctx.dt * 5);
             this.firstRowIndex = Math.round(this.floatingRowIndex);
 
             const names = this.manager?.context.getIconNames(category) ?? [];

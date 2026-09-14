@@ -233,8 +233,8 @@ export class Game {
     private readonly previewSize = 128;
     private readonly previewBackbufferX = 199;
     private readonly previewBackbufferY = 115;
-    private readonly previewBackbufferWidth = 1280;
-    private readonly previewBackbufferHeight = 720;
+    private readonly previewBackbufferWidth = 1920;
+    private readonly previewBackbufferHeight = 1080;
 
     private initIconPreviewCanvas(): void {
         const canvas = document.createElement("canvas");
@@ -326,8 +326,8 @@ export class Game {
     }
 
     /**
-     * Gallery canvas: covers the full 1280x720 backbuffer so the grid can
-     * draw at its original coordinates; CSS-scaled with the letterbox.
+     * Gallery canvas: covers the full 1920x1080 backbuffer (the original's
+     * HUD coordinate space) so the grid can draw at its original coordinates.
      */
     private galleryCanvas: HTMLCanvasElement | undefined;
     private galleryCtx: CanvasRenderingContext2D | undefined;
