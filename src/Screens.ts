@@ -716,7 +716,8 @@ export class GalleryScreen extends GameScreen {
     public handleSelect(deltaX: number, deltaY: number): void {
         const categories = this.manager?.context.getCategories() ?? [];
         const category = categories[this.categoryIndex] ?? "";
-        const numIcons = this.cachedNumIcons(category);
+        // The loaded image count is authoritative (0 until the category loads).
+        const numIcons = Math.min(this.images.length, this.cachedNumIcons(category)) || this.images.length;
         if (numIcons <= 0) {
             return;
         }
@@ -748,7 +749,8 @@ export class GalleryScreen extends GameScreen {
         }
         const categories = this.manager?.context.getCategories() ?? [];
         const category = categories[this.categoryIndex] ?? "";
-        const numIcons = this.cachedNumIcons(category);
+        // The loaded image count is authoritative (0 until the category loads).
+        const numIcons = Math.min(this.images.length, this.cachedNumIcons(category)) || this.images.length;
         const numUnlockedIcons = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
 
         // Port of GalleryScreen.Draw: rotate the light while transitioning.
