@@ -609,6 +609,8 @@ export class Game {
             this.context.viewportHeight = this.viewportH;
         }
         this.updatePreviewLayout();
+        this.updateUnlockLayout();
+        this.updateGalleryLayout();
     }
 
     private handleKey(event: KeyboardEvent, down: boolean): void {
