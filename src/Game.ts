@@ -185,14 +185,17 @@ export class Game {
      */
     private previewCanvas: HTMLCanvasElement | undefined;
     private previewCtx: CanvasRenderingContext2D | undefined;
+    private readonly previewSize = 128;
+    private readonly previewBackbufferX = 199;
+    private readonly previewBackbufferY = 115;
     private readonly previewBackbufferWidth = 1280;
-    private readonly previewBackbufferHeight = 720;
 
     private initIconPreviewCanvas(): void {
         const canvas = document.createElement("canvas");
         canvas.id = "icon-preview";
-        canvas.width = this.previewBackbufferWidth;
-        canvas.height = this.previewBackbufferHeight;
+        // The canvas covers only the 128x128 preview rect itself.
+        canvas.width = this.previewSize;
+        canvas.height = this.previewSize;
         canvas.style.position = "absolute";
         canvas.style.pointerEvents = "none";
         canvas.style.imageRendering = "pixelated";
@@ -213,10 +216,10 @@ export class Game {
         }
         // Map the backbuffer rect into letterboxed window pixels.
         const scale = this.viewportW / this.previewBackbufferWidth;
-        canvas.style.left = `${this.viewportX + 199 * scale}px`;
-        canvas.style.top = `${this.viewportY + 115 * scale}px`;
-        canvas.style.width = `${128 * scale}px`;
-        canvas.style.height = `${128 * scale}px`;
+        canvas.style.left = `${this.viewportX + this.previewBackbufferX * scale}px`;
+        canvas.style.top = `${this.viewportY + this.previewBackbufferY * scale}px`;
+        canvas.style.width = `${this.previewSize * scale}px`;
+        canvas.style.height = `${this.previewSize * scale}px`;
     }
 
     /** Port of the HUD spriteBatch icon-preview block. */
@@ -230,7 +233,7 @@ export class Game {
         if (ctx === undefined) {
             return;
         }
-        ctx.clearRect(0, 0, this.previewBackbufferWidth, this.previewBackbufferHeight);
+        ctx.clearRect(0, 0, this.previewSize, this.previewSize);
         if (previous !== undefined && alphaPrevious > 0.001) {
             this.drawIconToPreview(ctx, previous, alphaPrevious);
         }
@@ -272,7 +275,7 @@ export class Game {
         ctx.globalAlpha = alpha;
         // PointClamp: disable smoothing for the pixelated upscale.
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(bitmap, 199, 115, 128, 128);
+        ctx.drawImage(bitmap, 0, 0, this.previewSize, this.previewSize);
         ctx.globalAlpha = 1;
     }
 
