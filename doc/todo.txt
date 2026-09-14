@@ -5,10 +5,9 @@ Super Quadric Riddle >>> Super Quadriddle
 
 	- XNA to TS Port: 
 			Known remaining gaps (not regressions, just unported features): 
-				- the Challenge-mode icon stack
-				- icon unlocking
-				- audio
-				- The Gallery is a simplified category summary rather than the full icon grid.
+				- port icon unlocking using local storage
+				- port the audio (sfx and music) by converting (e.g. using ffmpeg) the source audio files into web friendly formats (ogg/webm, mp3) and using the Web Audio API or HTML5 Audio for playback
+				- The Gallery is a simplified category summary rather than the full icon grid, please port it to show the full grid of icons (with scrolling).
 
 	Game1: http://www.bobblebrook.com/games/coign-of-vantage
 

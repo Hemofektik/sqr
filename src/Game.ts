@@ -9,7 +9,7 @@ import type { ScreenContext, GameScreen } from "./ScreenManager.ts";
 import { MenuScreen } from "./MenuScreen.ts";
 import { loadIconImage } from "./IconProvider.ts";
 import { RotationGameScreen } from "./RotationGameScreen.ts";
-import type { IconImage, RotationGameHost } from "./RotationGame.ts";
+import type { GameMode, IconImage, RotationGameHost } from "./RotationGame.ts";
 import {
     MainMenuScreen,
     MessageBoxScreen,
@@ -88,13 +88,16 @@ export class Game {
             drawIconPreview: (current, previous, alphaCurrent, alphaPrevious) => {
                 this.drawIconPreview(current, previous, alphaCurrent, alphaPrevious);
             },
+            drawStackIcon: (image, x, y, size, alpha) => {
+                this.drawStackIcon(image, x, y, size, alpha);
+            },
         };
         this.context = context;
         this.screenManager = new ScreenManager(context);
 
         this.screenManager.addScreen(new MainMenuScreen(
-            () => this.screenManager.addScreen(new RotationGameModeScreen((categoryIndex, categoryName) => {
-                this.startRotationGame(categoryIndex, categoryName);
+            () => this.screenManager.addScreen(new RotationGameModeScreen((gameMode, categoryIndex, categoryName) => {
+                this.startRotationGame(gameMode, categoryIndex, categoryName);
             })),
             () => this.screenManager.addScreen(new MessageBoxScreen(
                 `Are you sure you want to exit ${GAME_NAME}?`,
@@ -227,6 +230,23 @@ export class Game {
         this.previewCtx?.clearRect(0, 0, this.previewSize, this.previewSize);
     }
 
+    /** Draws a Challenge stack icon in backbuffer coordinates. */
+    private drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void {
+        const ctx = this.previewCtx;
+        if (ctx === undefined) {
+            return;
+        }
+        const bitmap = this.previewBitmapCache.get(image);
+        if (bitmap === undefined) {
+            void this.getPreviewBitmap(image);
+            return;
+        }
+        ctx.globalAlpha = alpha;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(bitmap, x, y, size, size);
+        ctx.globalAlpha = 1;
+    }
+
     /** Port of the HUD spriteBatch icon-preview block. */
     private drawIconPreview(
         current: IconImage,
@@ -301,7 +321,7 @@ export class Game {
         return promise;
     }
 
-    private startRotationGame(categoryIndex: number, categoryName: string): void {
+    private startRotationGame(gameMode: GameMode, categoryIndex: number, categoryName: string): void {
         // Port of LoadingScreen.Load: the game replaces all current screens
         // (background + menus transition off).
         for (const screen of this.screenManager.getScreens()) {
@@ -324,13 +344,16 @@ export class Game {
             drawIconPreview: (current, previous, alphaCurrent, alphaPrevious) => {
                 this.drawIconPreview(current, previous, alphaCurrent, alphaPrevious);
             },
+            drawStackIcon: (image, x, y, size, alpha) => {
+                this.drawStackIcon(image, x, y, size, alpha);
+            },
             startBackgroundAnimation: (color) => {
                 // Only the grid background is visible during the game.
                 this.background.startAnimation(this.gameTime, new Vec4(1, 1, 1, 1), color);
             },
         };
         this.screenManager.addScreen(new RotationGameScreen(
-            "TimeAttack",
+            gameMode,
             categoryIndex,
             categoryName,
             host,
@@ -463,8 +486,8 @@ export class Game {
                         screen.exitScreen();
                     }
                     this.screenManager.addScreen(new MainMenuScreen(
-                        () => this.screenManager.addScreen(new RotationGameModeScreen((categoryIndex, categoryName) => {
-                            this.startRotationGame(categoryIndex, categoryName);
+                        () => this.screenManager.addScreen(new RotationGameModeScreen((gameMode, categoryIndex, categoryName) => {
+                            this.startRotationGame(gameMode, categoryIndex, categoryName);
                         })),
                         () => this.screenManager.addScreen(new MessageBoxScreen(
                             `Are you sure you want to exit ${GAME_NAME}?`,

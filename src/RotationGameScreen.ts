@@ -21,24 +21,24 @@ export class RotationGameScreen extends GameScreen {
     private readonly camera = new Camera();
 
     public constructor(
-        gameMode: "TimeAttack",
+        gameMode: RotationGame['getGameMode'] extends () => infer M ? M : never,
         categoryIndex: number,
         categoryName: string,
         host: RotationGameHost,
     ) {
         super();
-        void gameMode;
+        this.gameModeName = gameMode;
         this.categoryIndex = categoryIndex;
         this.categoryName = categoryName;
         this.batch = new SuperQuadricBatch(16, 4096, false);
         this.scene.add(this.batch.mesh);
-        this.rotGame = new RotationGame(host, categoryIndex, categoryName);
+        this.rotGame = new RotationGame(host, gameMode, categoryIndex, categoryName);
     }
 
     private totalGameTime = 0;
     private statisticsWhereShown = false;
     private highscoreWhereShown = false;
-    private readonly gameModeName = "TimeAttack";
+    private readonly gameModeName: string;
     private readonly categoryIndex: number;
     private readonly categoryName: string;
 
@@ -130,18 +130,39 @@ export class RotationGameScreen extends GameScreen {
             }
 
             game.getScoreBoard().draw(hudVisibility);
-            game.getTimeBoard().draw(hudVisibility);
+            if (game.getGameMode() === "TimeAttack") {
+                game.getTimeBoard().draw(hudVisibility);
+            }
             game.getPraising().draw(hudVisibility);
             game.getCountdown().draw(hudVisibility);
+
+            // Port of the Challenge icon stack (spriteBatch block).
+            if (game.getGameMode() === "Challenge") {
+                const progress = game.getCamFuzzingProgress();
+                const start = Math.max(0, game.getCurrentIconIndex() - 1);
+                for (let n = start; n < game.getRandomListLength(); n++) {
+                    const image = game.getIconImageAt(n);
+                    if (image === undefined) {
+                        continue;
+                    }
+                    const scaleOffset = n === game.getCurrentIconIndex() - 1 ? 32 * progress : 0;
+                    const x = 199 + 32 - scaleOffset;
+                    const y = 115 + 128 + 128 - scaleOffset + ((n - game.getCurrentIconIndex()) - progress) * (70 + scaleOffset);
+                    const size = 64 + scaleOffset * 2;
+                    const alpha = hudVisibility * (n === game.getCurrentIconIndex() - 1 ? 1 - Math.pow(progress, 5) : 1);
+                    ctx.drawStackIcon(image, x, y, size, alpha);
+                }
+            }
         }
 
         // Port of the game-over text block in RotationGame.Render.
         if (game.isGameOverAnimationRunning()) {
             const font = ctx.font;
             const textAlpha = Math.min(1, game.getGameOverProgress() * 2);
-            const fontColor = new Vec4(1, 0, 0, textAlpha);
-            const gameOverText = "Time up!";
-            const targetX = -0.7;
+            const isChallenge = game.getGameMode() === "Challenge";
+            const fontColor = isChallenge ? new Vec4(0, 0.8, 0, textAlpha) : new Vec4(1, 0, 0, textAlpha);
+            const gameOverText = isChallenge ? "Challenge complete!" : "Time up!";
+            const targetX = isChallenge ? -1 : -0.7;
 
             const viewPosition = new Vec3(0, 0, 1);
             {

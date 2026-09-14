@@ -102,9 +102,13 @@ export class RotationGameModeScreen extends MenuScreen {
     public override readonly kind = "gameMode" as const;
     private categoryIndex = 0;
     private firstTimeStarted = true;
-    private readonly onStartGame: ((categoryIndex: number, categoryName: string) => void) | undefined;
+    private readonly onStartGame:
+        | ((gameMode: "TimeAttack" | "Challenge", categoryIndex: number, categoryName: string) => void)
+        | undefined;
 
-    public constructor(onStartGame?: (categoryIndex: number, categoryName: string) => void) {
+    public constructor(
+        onStartGame?: (gameMode: "TimeAttack" | "Challenge", categoryIndex: number, categoryName: string) => void,
+    ) {
         super("Game Mode");
         this.onStartGame = onStartGame;
         this.selectedEntry = 1;
@@ -136,10 +140,11 @@ export class RotationGameModeScreen extends MenuScreen {
     }
 
     private startGame(gameMode: GameModeValue): void {
-        if (gameMode === GameMode.TimeAttack) {
+        if (gameMode === GameMode.TimeAttack || gameMode === GameMode.Challenge) {
             const categories = this.manager?.context.getCategories() ?? [];
             const categoryName = categories[this.categoryIndex] ?? "";
-            this.onStartGame?.(this.categoryIndex, categoryName);
+            const mode: "TimeAttack" | "Challenge" = gameMode === GameMode.Challenge ? "Challenge" : "TimeAttack";
+            this.onStartGame?.(mode, this.categoryIndex, categoryName);
             return;
         }
         this.manager?.context.showToast(`${GAME_MODE_NAMES[gameMode]} is not ported yet.`);

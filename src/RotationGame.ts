@@ -24,6 +24,8 @@ export interface IconImage {
     data: Uint8ClampedArray;
 }
 
+export type GameMode = "TimeAttack" | "Challenge";
+
 export interface RotationGameHost {
     /** The superquadric font used for HUD text. */
     font: SQFont;
@@ -36,6 +38,10 @@ export interface RotationGameHost {
      * the icon transition current and previous are drawn crossfaded.
      */
     drawIconPreview(current: IconImage, previous: IconImage | undefined, alphaCurrent: number, alphaPrevious: number): void;
+    /**
+     * Draws one 64x64 stack icon (Challenge mode) in backbuffer coordinates.
+     */
+    drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void;
     /** Starts the game background color animation on the global clock. */
     startBackgroundAnimation(color: Vec4): void;
 }
@@ -65,6 +71,7 @@ function isColorGreyish(color: Vec4): boolean {
 export class RotationGame {
     private readonly categoryName: string;
     private readonly host: RotationGameHost;
+    private readonly gameMode: GameMode;
 
     private camPitch = 0;
     private camYaw = 0;
@@ -84,6 +91,7 @@ export class RotationGame {
 
     private iconImage: IconImage | undefined;
     private prevIconImage: IconImage | undefined;
+    private readonly iconImageCache = new Map<number, IconImage>();
 
     private readonly camFuzzingAnimation = new Animation(1);
     private camFuzzingPitch = 0;
@@ -110,8 +118,9 @@ export class RotationGame {
         averagePuzzleSolvingSpeed: -1,
     };
 
-    public constructor(host: RotationGameHost, categoryIndex: number, categoryName: string) {
+    public constructor(host: RotationGameHost, gameMode: GameMode, categoryIndex: number, categoryName: string) {
         this.host = host;
+        this.gameMode = gameMode;
         this.categoryName = categoryName;
         void categoryIndex;
 
@@ -157,14 +166,18 @@ export class RotationGame {
         return this.countdown.TimeLeft > 0 || this.camFuzzingAnimation.isRunning;
     }
 
-    /** Port of CreateRandomIconList. */
+    /** Port of CreateRandomIconList: Challenge caps the list at 30 icons. */
     private createRandomIconList(): void {
+        let numRandomIcons = this.numIcons;
+        if (this.gameMode === "Challenge") {
+            numRandomIcons = Math.min(numRandomIcons, 30);
+        }
         const copy: number[] = [];
-        for (let n = 0; n < this.numIcons; n++) {
+        for (let n = 0; n < numRandomIcons; n++) {
             copy.push(n);
         }
         this.randomIconIndex = [];
-        for (let n = 0; n < this.numIcons; n++) {
+        for (let n = 0; n < numRandomIcons; n++) {
             const index = Math.floor(this.rnd() * copy.length);
             const picked = copy.splice(index, 1)[0];
             if (picked !== undefined) {
@@ -181,6 +194,7 @@ export class RotationGame {
             return;
         }
         this.iconImage = await this.host.loadIcon(this.categoryName, index);
+        this.iconImageCache.set(index, this.iconImage);
 
         const mainColor = this.im.init(
             this.iconImage.width,
@@ -200,9 +214,16 @@ export class RotationGame {
         this.host.startBackgroundAnimation(bgColor);
 
         this.currentIconIndex++;
-        if (this.currentIconIndex >= this.randomIconIndex.length) {
-            this.currentIconIndex = 0;
-            this.createRandomIconList();
+        if (this.gameMode === "Challenge") {
+            // Port of LoadNewIcon: the Challenge ends when the stack is empty.
+            if (this.currentIconIndex > this.randomIconIndex.length) {
+                this.beginGameOver(totalGameTime);
+            }
+        } else {
+            if (this.currentIconIndex >= this.randomIconIndex.length) {
+                this.currentIconIndex = 0;
+                this.createRandomIconList();
+            }
         }
     }
 
@@ -318,11 +339,17 @@ export class RotationGame {
         this.timeBoard.update(totalGameTime, dt, !isPuzzleCompleteAnimPlaying);
         this.scoreBoard.update(dt, !isPuzzleCompleteAnimPlaying);
 
+        // Port of the Challenge gainable-score display.
+        if (this.gameMode === "Challenge" && allowInput && !this.puzzleSolvedCompleteHenceDisableLogic) {
+            const duration = totalGameTime - this.puzzleStartedTime;
+            this.scoreBoard.setScoreToAdd(1000 + Math.floor(Math.max(0, 9 - duration)) * 1000);
+        }
+
         if (this.gameOverAnimation.isRunning) {
             this.gameOverAnimation.update(totalGameTime);
         }
 
-        if (this.timeBoard.TimeLeft <= 0 && !this.gameOver) {
+        if (this.gameMode === "TimeAttack" && this.timeBoard.TimeLeft <= 0 && !this.gameOver) {
             this.beginGameOver(totalGameTime);
         }
     }
@@ -404,6 +431,23 @@ export class RotationGame {
 
     public getTimeUpBounce(progress: number): number {
         return 1 - this.timeUpCurve.evaluate(progress * 3);
+    }
+
+    public getGameMode(): GameMode {
+        return this.gameMode;
+    }
+
+    /** Resolves the icon image at a random-list position (for the HUD stack). */
+    public getIconImageAt(position: number): IconImage | undefined {
+        return this.iconImageCache.get(this.randomIconIndex[position] ?? -1);
+    }
+
+    public getRandomListLength(): number {
+        return this.randomIconIndex.length;
+    }
+
+    public getCurrentIconIndex(): number {
+        return this.currentIconIndex;
     }
 
     /** Icon preview crossfade state (port of the HUD spriteBatch block). */

@@ -46,6 +46,8 @@ export interface ScreenContext {
     renderScene(scene: Scene, camera: Camera, minDepth: number, maxDepth: number): void;
     /** Draws the 2D icon preview into the HUD corner. */
     drawIconPreview(current: IconImage, previous: IconImage | undefined, alphaCurrent: number, alphaPrevious: number): void;
+    /** Draws one 64x64 stack icon (Challenge mode) in backbuffer coordinates. */
+    drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void;
 }
 
 export abstract class GameScreen {
