@@ -53,6 +53,16 @@ export interface ScreenContext {
     drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void;
     /** Draws the unlocked icon flash (128x128 at (199,815)). */
     drawUnlockIcon(image: IconImage, alpha: number): void;
+    /** Clears and draws the gallery grid overlay. */
+    clearGallery(): void;
+    /** Draws one gallery grid icon at backbuffer scale (aspect preserved). */
+    drawGalleryIcon(image: IconImage, x: number, y: number, height: number, alpha: number): void;
+    /** Draws the locked-image placeholder at the same position. */
+    drawLockedIcon(x: number, y: number, height: number, alpha: number): void;
+    /** Loads every icon of a category (gallery grid). */
+    loadAllIcons(category: string): Promise<IconImage[]>;
+    /** Display names of all icons of a category, in order. */
+    getIconNames(category: string): string[];
 }
 
 export abstract class GameScreen {

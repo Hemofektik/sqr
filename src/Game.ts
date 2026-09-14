@@ -104,6 +104,33 @@ export class Game {
             drawUnlockIcon: (image, alpha) => {
                 this.drawUnlockIcon(image, alpha);
             },
+            drawGalleryIcon: (image, x, y, height, alpha) => {
+                this.drawGalleryIcon(image, x, y, height, alpha);
+            },
+            drawLockedIcon: (x, y, height, alpha) => {
+                this.drawLockedIcon(x, y, height, alpha);
+            },
+            clearGallery: () => {
+                this.clearGallery();
+            },
+            loadAllIcons: async (category: string) => {
+                const entries = await this.loadIconList(category);
+                const images: IconImage[] = [];
+                for (let n = 0; n < entries.length; n++) {
+                    const entry = entries[n];
+                    if (entry === undefined) {
+                        continue;
+                    }
+                    const image = await loadIconImage(`/assets/icons/${entry.file}`);
+                    await this.getPreviewBitmap(image);
+                    this.iconNameCache.set(`${category}:${n}`, entry.name);
+                    images.push(image);
+                }
+                return images;
+            },
+            getIconNames: (category: string) => {
+                return this.iconNamesCache.get(category) ?? [];
+            },
         };
         this.context = context;
         this.screenManager = new ScreenManager(context);
@@ -122,6 +149,7 @@ export class Game {
 
         this.initIconPreviewCanvas();
         this.initUnlockCanvas();
+        this.initGalleryCanvas();
         this.resize();
         window.addEventListener("resize", () => this.resize());
         window.addEventListener("keydown", (e) => this.handleKey(e, true));
@@ -206,6 +234,7 @@ export class Game {
     private readonly previewBackbufferX = 199;
     private readonly previewBackbufferY = 115;
     private readonly previewBackbufferWidth = 1280;
+    private readonly previewBackbufferHeight = 720;
 
     private initIconPreviewCanvas(): void {
         const canvas = document.createElement("canvas");
@@ -296,6 +325,98 @@ export class Game {
         ctx.globalAlpha = 1;
     }
 
+    /**
+     * Gallery canvas: covers the full 1280x720 backbuffer so the grid can
+     * draw at its original coordinates; CSS-scaled with the letterbox.
+     */
+    private galleryCanvas: HTMLCanvasElement | undefined;
+    private galleryCtx: CanvasRenderingContext2D | undefined;
+    private lockedImageCanvas: HTMLCanvasElement | undefined;
+
+    private initGalleryCanvas(): void {
+        const canvas = document.createElement("canvas");
+        canvas.id = "gallery";
+        canvas.width = this.previewBackbufferWidth;
+        canvas.height = this.previewBackbufferHeight;
+        canvas.style.position = "absolute";
+        canvas.style.pointerEvents = "none";
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext("2d");
+        if (ctx === null) {
+            throw new Error("No 2D context for gallery");
+        }
+        this.galleryCanvas = canvas;
+        this.galleryCtx = ctx;
+        this.updateGalleryLayout();
+
+        // The locked-image placeholder (a gray square with a padlock-ish X).
+        const locked = document.createElement("canvas");
+        locked.width = 64;
+        locked.height = 64;
+        const lctx = locked.getContext("2d");
+        if (lctx !== null) {
+            lctx.fillStyle = "#3a3a3a";
+            lctx.fillRect(0, 0, 64, 64);
+            lctx.strokeStyle = "#6a6a6a";
+            lctx.lineWidth = 4;
+            lctx.strokeRect(4, 4, 56, 56);
+            lctx.beginPath();
+            lctx.moveTo(10, 10);
+            lctx.lineTo(54, 54);
+            lctx.moveTo(54, 10);
+            lctx.lineTo(10, 54);
+            lctx.stroke();
+        }
+        this.lockedImageCanvas = locked;
+    }
+
+    private updateGalleryLayout(): void {
+        const canvas = this.galleryCanvas;
+        if (canvas === undefined) {
+            return;
+        }
+        const scale = this.viewportW / this.previewBackbufferWidth;
+        canvas.style.left = `${this.viewportX}px`;
+        canvas.style.top = `${this.viewportY}px`;
+        canvas.style.width = `${this.viewportW}px`;
+        canvas.style.height = `${this.viewportH}px`;
+        void scale;
+    }
+
+    private clearGallery(): void {
+        this.galleryCtx?.clearRect(0, 0, this.previewBackbufferWidth, this.previewBackbufferHeight);
+    }
+
+    /** Gallery grid icon: height in backbuffer pixels, aspect preserved. */
+    private drawGalleryIcon(image: IconImage, x: number, y: number, height: number, alpha: number): void {
+        const ctx = this.galleryCtx;
+        if (ctx === undefined) {
+            return;
+        }
+        const bitmap = this.previewBitmapCache.get(image);
+        if (bitmap === undefined) {
+            void this.getPreviewBitmap(image);
+            return;
+        }
+        const scale = height / image.height;
+        const width = image.width * scale;
+        ctx.globalAlpha = alpha;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(bitmap, x, y, width, height);
+        ctx.globalAlpha = 1;
+    }
+
+    private drawLockedIcon(x: number, y: number, height: number, alpha: number): void {
+        const ctx = this.galleryCtx;
+        if (ctx === undefined || this.lockedImageCanvas === null || this.lockedImageCanvas === undefined) {
+            return;
+        }
+        ctx.globalAlpha = alpha;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(this.lockedImageCanvas, x, y, height, height);
+        ctx.globalAlpha = 1;
+    }
+
     /** Draws a Challenge stack icon in backbuffer coordinates. */
     private drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void {
         const ctx = this.previewCtx;
@@ -373,6 +494,7 @@ export class Game {
     /** Icon file list cache per category (from /icons/manifest.json). */
     private iconListCache = new Map<string, Promise<IconManifestEntry[]>>();
     private iconNameCache = new Map<string, string>();
+    private iconNamesCache = new Map<string, string[]>();
 
     private loadIconList(category: string): Promise<IconManifestEntry[]> {
         const cached = this.iconListCache.get(category);
@@ -382,7 +504,9 @@ export class Game {
         const promise = (async () => {
             const response = await fetch("/icons/manifest.json");
             const manifest = (await response.json()) as Record<string, IconManifestEntry[]>;
-            return manifest[category] ?? [];
+            const entries = manifest[category] ?? [];
+            this.iconNamesCache.set(category, entries.map((entry) => entry.name));
+            return entries;
         })();
         this.iconListCache.set(category, promise);
         return promise;
@@ -534,6 +658,14 @@ export class Game {
                     top.handleCategory(-1);
                 } else if (event.key === "PageDown") {
                     top.handleCategory(1);
+                } else if (event.key === "ArrowLeft" || event.key === "a" || event.key === "A") {
+                    top.handleSelect(-1, 0);
+                } else if (event.key === "ArrowRight" || event.key === "d" || event.key === "D") {
+                    top.handleSelect(1, 0);
+                } else if (event.key === "ArrowUp" || event.key === "w" || event.key === "W") {
+                    top.handleSelect(0, -1);
+                } else if (event.key === "ArrowDown" || event.key === "s" || event.key === "S") {
+                    top.handleSelect(0, 1);
                 }
             }
             return;
@@ -648,6 +780,12 @@ export class Game {
         // Hide the icon preview when no game is on screen.
         if (!gameActive) {
             this.clearIconPreview();
+            this.unlockCtx?.clearRect(0, 0, this.previewSize, this.previewSize);
+        }
+
+        // The gallery overlay is only drawn while the gallery is on screen.
+        if (!this.screenManager.managesScreen("gallery")) {
+            this.clearGallery();
         }
     }
 }

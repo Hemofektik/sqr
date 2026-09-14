@@ -9,6 +9,7 @@ import type { ScreenContext } from "./ScreenManager.ts";
 import { MenuScreen } from "./MenuScreen.ts";
 import type { MenuEntryDef } from "./MenuScreen.ts";
 import { SuperQuadric } from "./SuperQuadric.ts";
+import type { IconImage } from "./RotationGame.ts";
 import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
 
 const GAME_NAME = "Superquadriddle";
@@ -666,6 +667,18 @@ export class GalleryScreen extends GameScreen {
     public readonly kind = "gallery" as const;
     private firstTimeStarted = true;
     private categoryIndex = 0;
+    private selectedImageIndex = 0;
+
+    // Port of numFilesOnScreenX/Y: the grid is 17 columns x 7 rows.
+    private static readonly NUM_FILES_ON_SCREEN_X = 17;
+    private static readonly NUM_FILES_ON_SCREEN_Y = 7;
+    private static readonly NUM_FILES_ON_SCREEN =
+        GalleryScreen.NUM_FILES_ON_SCREEN_X * GalleryScreen.NUM_FILES_ON_SCREEN_Y;
+
+    private floatingRowIndex = 0;
+    private firstRowIndex = 0;
+    private iconName = "";
+    private images: IconImage[] = [];
 
     public constructor() {
         super();
@@ -678,28 +691,65 @@ export class GalleryScreen extends GameScreen {
         if (this.firstTimeStarted) {
             this.firstTimeStarted = false;
             this.manager?.context.startBackgroundAnimation([0.2, 0.6, 0.8, 1], [0.1, 0.3, 0.7, 1]);
+            void this.loadCategory();
         }
     }
 
+    private async loadCategory(): Promise<void> {
+        const categories = this.manager?.context.getCategories() ?? [];
+        const category = categories[this.categoryIndex] ?? "";
+        this.images = await this.manager?.context.loadAllIcons(category) ?? [];
+    }
+
+    /** Port of the category-switch input (PageUp/PageDown). */
     public handleCategory(delta: number): void {
         const categories = this.manager?.context.getCategories() ?? [];
         if (categories.length === 0) {
             return;
         }
         this.categoryIndex = (this.categoryIndex + categories.length + delta) % categories.length;
+        this.selectedImageIndex = 0;
+        void this.loadCategory();
     }
 
-    public override draw(_ctx: ScreenContext): void {
+    /** Port of the image-selection input (arrows move within the grid). */
+    public handleSelect(deltaX: number, deltaY: number): void {
+        const categories = this.manager?.context.getCategories() ?? [];
+        const category = categories[this.categoryIndex] ?? "";
+        const numIcons = this.cachedNumIcons(category);
+        if (numIcons <= 0) {
+            return;
+        }
+        const numUnlockedIcons = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
+
+        this.selectedImageIndex += deltaX * GalleryScreen.NUM_FILES_ON_SCREEN_Y + deltaY;
+        this.selectedImageIndex = (this.selectedImageIndex + numIcons) % numIcons;
+
+        if (this.selectedImageIndex >= numUnlockedIcons) {
+            if (deltaX > 0) {
+                this.selectedImageIndex -= GalleryScreen.NUM_FILES_ON_SCREEN_Y - 1;
+            } else if (deltaX < 0 || deltaY < 0) {
+                this.selectedImageIndex = numUnlockedIcons - 1;
+            }
+            if (this.selectedImageIndex >= numUnlockedIcons) {
+                this.selectedImageIndex = 0;
+            }
+        }
+    }
+
+    public getSelectedIconName(): string {
+        return this.iconName;
+    }
+
+    public override draw(ctx: ScreenContext): void {
         const font = this.manager?.context.font;
         if (font === undefined) {
             return;
         }
-        const fontEmissive = new Vec4(0, 0, 0, 1 - this.transitionPosition);
-        const fontColor = new Vec4(1, 1, 1, 1 - this.transitionPosition);
         const categories = this.manager?.context.getCategories() ?? [];
         const category = categories[this.categoryIndex] ?? "";
         const numIcons = this.cachedNumIcons(category);
-        const unlocked = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
+        const numUnlockedIcons = this.manager?.context.getNumIconsUnlocked(this.categoryIndex) ?? 0;
 
         // Port of GalleryScreen.Draw: rotate the light while transitioning.
         {
@@ -708,29 +758,102 @@ export class GalleryScreen extends GameScreen {
             SuperQuadric.setLightDir(Mat4.createFromYawPitchRoll(phi, theta, 0).forward());
         }
 
-        // Title (GalleryScreen.Draw): perspective projection with zDepth fade.
-        const zDepth = 30 - this.transitionPosition * 45;
-        const zDepthScale = 30 / zDepth;
+        // Title (perspective projection with zDepth fade).
+        const fontEmissive = new Vec4(0, 0, 0, 1 - this.transitionPosition);
+        {
+            const zDepth = 30 - this.transitionPosition * 45;
+            const zDepthScale = 30 / zDepth;
+            font.addText(
+                "Gallery",
+                new Vec3(-0.7 * zDepthScale, 0.5 * zDepthScale, -1).multiplyScalar(zDepth),
+                1,
+                new Vec4(1, 0.8, 0.4, 1 - this.transitionPosition),
+                fontEmissive,
+            );
+            setupFontCameraPerspective(font, new Vec3(0, 0, 1));
+            font.flush(true);
+        }
 
-        font.addText(
-            "Gallery",
-            new Vec3(-0.7 * zDepthScale, 0.5 * zDepthScale, -1).multiplyScalar(zDepth),
-            1,
-            new Vec4(1, 0.8, 0.4, 1 - this.transitionPosition),
-            fontEmissive,
-        );
-        setupFontCameraPerspective(font, new Vec3(0, 0, 1));
-        font.flush(true);
+        // Grid of icons (drawn on the 2D overlay in backbuffer coordinates).
+        ctx.clearGallery();
+        const alpha = 1 - this.transitionPosition;
+        if (alpha > 0.001) {
+            // Smooth scroll towards the selected row.
+            const targetRowIndex = Math.floor(this.selectedImageIndex / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
+            this.floatingRowIndex += (targetRowIndex - this.floatingRowIndex) * Math.min(1, ctx.dt * 5);
+            this.firstRowIndex = Math.round(this.floatingRowIndex);
 
-        // Category summary (ortho, like the icon-name text in the original).
-        font.addText(
-            `${category}: ${unlocked}/${numIcons} unlocked`,
-            new Vec3(-1.2, -0.75, -1).multiplyScalar(60),
-            0.9,
-            fontColor,
-        );
-        setupFontCamera(font, new Vec3(0, 0, 1));
-        font.flush(true);
+            const names = this.manager?.context.getIconNames(category) ?? [];
+            this.iconName = names[this.selectedImageIndex] ?? "";
+
+            let fileCount = 0;
+            for (
+                let n = this.firstRowIndex * GalleryScreen.NUM_FILES_ON_SCREEN_Y;
+                n < numIcons && fileCount < GalleryScreen.NUM_FILES_ON_SCREEN;
+                n++, fileCount++
+            ) {
+                const image = this.images[n];
+                if (image === undefined) {
+                    continue;
+                }
+                const isSelected = this.selectedImageIndex === n;
+                const isLocked = n >= numUnlockedIcons;
+
+                const x = Math.floor(n / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
+                const y = n % GalleryScreen.NUM_FILES_ON_SCREEN_Y;
+
+                let a = alpha;
+                let height = 64;
+                let offsetX = x * 80 + 230;
+                let offsetY = y * 80 + 270;
+
+                if (isSelected) {
+                    const pulseValue = Math.sin(ctx.gameTime * 3) * 5;
+                    offsetX -= pulseValue;
+                    offsetY -= pulseValue;
+                    height += pulseValue * 2;
+                } else {
+                    a *= 1;
+                }
+
+                if (isLocked) {
+                    ctx.drawLockedIcon(offsetX, offsetY, height, a);
+                } else {
+                    ctx.drawGalleryIcon(image, offsetX, offsetY, height, a);
+                }
+            }
+        }
+
+        // Selected icon name (ortho, like the icon-name text in the original).
+        const fadeValue = 1 - this.transitionPosition;
+        if (this.iconName !== "") {
+            font.addText(
+                this.iconName,
+                new Vec3(-1.2, -0.75, -1).multiplyScalar(60),
+                0.9,
+                new Vec4(1, 1, 1, fadeValue),
+                new Vec4(0, 0, 0, fadeValue),
+            );
+            setupFontCamera(font, new Vec3(0, 0, 1));
+            font.flush(true);
+        }
+
+        // Category name (footer, rotated-up ortho camera like the original).
+        {
+            const zDepth = 60;
+            font.addText(
+                category,
+                new Vec3(-0.35, -1.3, -1).multiplyScalar(zDepth),
+                0.9,
+                new Vec4(1, 1, 1, fadeValue),
+                new Vec4(0, 0, 0, fadeValue),
+            );
+            const viewPosition = new Vec3(0, 0, 1);
+            const viewMatrix = Mat4.createLookAt(viewPosition, new Vec3(0, 0, 0), new Vec3(1, 0, 0));
+            const projMatrix = Mat4.createOrthographicOffCenter(-100, 100, -56.25, 56.25, 1, 550);
+            font.applyCamera(viewPosition, viewMatrix, projMatrix);
+            font.flush(fadeValue < 1);
+        }
     }
 }
 
