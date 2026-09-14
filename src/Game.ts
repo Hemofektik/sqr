@@ -222,6 +222,11 @@ export class Game {
         canvas.style.height = `${this.previewSize * scale}px`;
     }
 
+    /** Hides the icon preview (drawn only while a game is on screen). */
+    private clearIconPreview(): void {
+        this.previewCtx?.clearRect(0, 0, this.previewSize, this.previewSize);
+    }
+
     /** Port of the HUD spriteBatch icon-preview block. */
     private drawIconPreview(
         current: IconImage,
@@ -450,7 +455,22 @@ export class Game {
         if (top instanceof RotationGameScreen) {
             if (down) {
                 if (event.key === "Escape") {
-                    this.screenManager.popScreen();
+                    // Port of PauseMenuScreen quit flow (simplified): leave the
+                    // game and load a fresh background + main menu, like
+                    // LoadingScreen.Load(..., new BackgroundScreen(),
+                    // new MainMenuScreen()).
+                    for (const screen of this.screenManager.getScreens()) {
+                        screen.exitScreen();
+                    }
+                    this.screenManager.addScreen(new MainMenuScreen(
+                        () => this.screenManager.addScreen(new RotationGameModeScreen((categoryIndex, categoryName) => {
+                            this.startRotationGame(categoryIndex, categoryName);
+                        })),
+                        () => this.screenManager.addScreen(new MessageBoxScreen(
+                            `Are you sure you want to exit ${GAME_NAME}?`,
+                            () => this.showToast("Close the browser tab to exit."),
+                        )),
+                    ));
                 }
             }
             return;
@@ -520,5 +540,10 @@ export class Game {
         gl.depthRange(0, 0.4);
         this.screenManager.draw();
         gl.depthRange(0, 1);
+
+        // Hide the icon preview when no game is on screen.
+        if (!gameActive) {
+            this.clearIconPreview();
+        }
     }
 }
