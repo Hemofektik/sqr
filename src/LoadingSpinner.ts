@@ -12,7 +12,7 @@ export class LoadingSpinner {
     public readonly scene = new Scene();
     public readonly camera = new Camera();
 
-    public constructor(numQuadrics = 64) {
+    public constructor(numQuadrics = 32) {
         for (let n = 0; n < numQuadrics; n++) {
             const sq = new SuperQuadric();
             sq.sqParams = new Vec4(0.2, 0.2, -10, 1);
@@ -36,6 +36,19 @@ export class LoadingSpinner {
             const radius = 8;
             const pos = new Vec3(Math.sin(rad) * radius, Math.cos(rad) * radius, 0);
             sq.world = Mat4.createBillboard(pos, Vec3.zero, Vec3.up, Vec3.forward);
+
+            // Animate the superquadric parameters based on the position on
+            // the circle: n/e sweep through the full shape range (cube ->
+            // sphere -> octahedron-ish), so every quadric on the ring shows a
+            // different shape. The rounded-corner angle follows the position
+            // too, giving beveled edges that rotate around the ring.
+            const t = n / this.sqs.length;
+            const wave = Math.sin(t * 2 * Math.PI + totalSeconds * 2);
+            const shapeN = 0.2 + (wave * 0.5 + 0.5) * 1.8; // 0.2 .. 2.0
+            const shapeE = 0.2 + (Math.cos(t * 2 * Math.PI + totalSeconds * 2) * 0.5 + 0.5) * 1.8;
+            const roundedRadiant = t * 2 * Math.PI;
+            sq.sqParams = new Vec4(shapeN, shapeE, roundedRadiant, 1);
+
             // Fade the tail of the swarm out.
             const fade = 0.5 + 0.5 * Math.sin(rad * 2 + totalSeconds * 2);
             sq.colorDiffuse = new Vec4(1, 0.7, 0.2, 0.5 + fade * 0.5);
