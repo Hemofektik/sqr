@@ -315,7 +315,7 @@ export class OptionsMenuScreen extends MenuScreen {
         // Apply the new volumes live (the original's audio events do this).
         this.manager?.context.applyAudioVolumes(config.sfxVolume, config.musicVolume);
         // Port of SQRGame.Update: the brightness is applied immediately.
-        this.manager?.context.applyBrightness();
+        this.manager?.context.applyBrightness(config.brightness);
     }
 
     private toggleSlider(entry: MenuEntryDef): void {
