@@ -701,7 +701,7 @@ export class Game {
         this.updatePreviewLayout();
         this.updateUnlockLayout();
         this.updateGalleryLayout();
-        this.applyBrightness();
+        this.applyBrightness(this.userConfig.brightness);
     }
 
     private handleKey(event: KeyboardEvent, down: boolean): void {
