@@ -94,10 +94,12 @@ export class Game {
         const unlockAudio = (): void => {
             this.audio.unlock();
             // Port of screenManager_OnEnteringMainMenu: the default playlist
-            // has only the menu track enabled.
+            // has only the menu track enabled. If a screen already requested
+            // another playlist (e.g. the game), that one is queued and wins.
             this.audio.enableAllTracks(false);
             this.audio.toggleTrack(0);
             void this.audio.play();
+            void this.audio.preloadSfx(["accept", "cancel", "validate"]);
             window.removeEventListener("pointerdown", unlockAudio);
             window.removeEventListener("keydown", unlockAudio);
         };

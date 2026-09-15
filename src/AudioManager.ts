@@ -15,6 +15,12 @@ export class AudioManager {
     private currentSource: AudioBufferSourceNode | undefined;
     private enabledTracks = new Set<number>();
     private currentTrack = -1;
+    /** Monotonic token so an older playTrack cannot overwrite a newer one. */
+    private playGeneration = 0;
+    /** Set while the AudioContext is suspended (before the first gesture). */
+    private suspended = true;
+    /** Playlist to start once the context is unlocked. */
+    private pendingPlaylist: number[] | undefined;
     private readonly trackFiles: string[];
     private sfxVolume: number;
     private musicVolume: number;
@@ -46,7 +52,20 @@ export class AudioManager {
 
     /** Called from a user gesture to unlock audio playback in the browser. */
     public unlock(): void {
-        this.ensureContext()?.resume().catch(() => undefined);
+        const ctx = this.ensureContext();
+        if (ctx === undefined) {
+            return;
+        }
+        this.suspended = ctx.state !== "running";
+        void ctx.resume().then(() => {
+            this.suspended = false;
+            // Start whatever playlist was requested before the unlock.
+            const pending = this.pendingPlaylist;
+            this.pendingPlaylist = undefined;
+            if (pending !== undefined) {
+                void this.activateList(pending);
+            }
+        }).catch(() => undefined);
     }
 
     public setSfxVolume(volume: number): void {
@@ -130,7 +149,21 @@ export class AudioManager {
 
     /** Port of PlayList.Activate: starts playing the first enabled track. */
     public async activate(): Promise<void> {
-        for (const index of this.enabledTracks) {
+        await this.activateList([...this.enabledTracks]);
+    }
+
+    private async activateList(indices: number[]): Promise<void> {
+        const ctx = this.ensureContext();
+        if (ctx === undefined) {
+            return;
+        }
+        // The context is suspended until the first user gesture: remember the
+        // request and start it from unlock() instead of fighting the warning.
+        if (this.suspended || ctx.state !== "running") {
+            this.pendingPlaylist = indices;
+            return;
+        }
+        for (const index of indices) {
             await this.playTrack(index);
             return;
         }
@@ -146,8 +179,13 @@ export class AudioManager {
         if (ctx === undefined) {
             return;
         }
+        const generation = ++this.playGeneration;
         const buffer = await this.ensureMusicTrack(index);
         if (buffer === undefined) {
+            return;
+        }
+        // An newer playTrack was started while this one was loading.
+        if (generation !== this.playGeneration) {
             return;
         }
         this.stopMusic();
@@ -156,8 +194,6 @@ export class AudioManager {
         source.buffer = buffer;
         source.loop = true;
         source.connect(this.musicGain ?? ctx.destination);
-        // Port of the playlist behavior: advance to the next enabled track
-        // when the current one ends (looping covers it, but keep it robust).
         this.currentSource = source;
         source.start();
     }
@@ -192,5 +228,10 @@ export class AudioManager {
         source.buffer = buffer;
         source.connect(this.sfxGain ?? ctx.destination);
         source.start();
+    }
+
+    /** Prefetches all sfx cues so they play without a network delay. */
+    public async preloadSfx(cueNames: string[]): Promise<void> {
+        await Promise.all(cueNames.map((name) => this.ensureSfx(name)));
     }
 }
