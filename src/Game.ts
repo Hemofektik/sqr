@@ -131,8 +131,8 @@ export class Game {
                 this.audio.setSfxVolume(sfxVolume);
                 this.audio.setMusicVolume(musicVolume);
             },
-            applyBrightness: () => {
-                this.applyBrightness();
+            applyBrightness: (brightness) => {
+                this.applyBrightness(brightness);
             },
             showToast: (message) => this.showToast(message),
             font: this.font,
@@ -655,8 +655,7 @@ export class Game {
     private readonly brightnessGammaMin = 0.4545454545;
     private readonly brightnessGammaMax = 2.2;
 
-    private applyBrightness(): void {
-        const brightness = this.userConfig.brightness;
+    private applyBrightness(brightness: number): void {
         // Port of the original's gamma power formula.
         const power = brightness < 0.5
             ? (0.5 - brightness) * 2 * (this.brightnessGammaMax - 1) + 1

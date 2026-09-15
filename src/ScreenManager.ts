@@ -44,7 +44,7 @@ export interface ScreenContext {
     /** Applies the given sfx/music volumes to the audio system immediately. */
     applyAudioVolumes(sfxVolume: number, musicVolume: number): void;
     /** Applies the current brightness setting immediately. */
-    applyBrightness(): void;
+    applyBrightness(brightness: number): void;
     /** Show a transient toast message. */
     showToast(message: string): void;
     /** The superquadric font used for all screen text. */

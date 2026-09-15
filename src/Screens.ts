@@ -347,7 +347,7 @@ export class OptionsMenuScreen extends MenuScreen {
                 const sfxValue = this.sfxEntry.slider?.enabled ? (this.sfxEntry.slider?.value ?? 0) : 0;
                 const musicValue = this.musicEntry.slider?.enabled ? (this.musicEntry.slider?.value ?? 0) : 0;
                 this.manager?.context.applyAudioVolumes(sfxValue, musicValue);
-                this.manager?.context.applyBrightness();
+                this.manager?.context.applyBrightness(brightness.slider?.value ?? 0.5);
                 if (entry === this.sfxEntry) {
                     this.manager?.context.playCue("accept");
                 }
