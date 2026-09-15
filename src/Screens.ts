@@ -313,7 +313,7 @@ export class OptionsMenuScreen extends MenuScreen {
         config.brightness = brightness.slider?.enabled ? (brightness.slider?.value ?? 0) : 0.5;
         config.save();
         // Apply the new volumes live (the original's audio events do this).
-        this.manager?.context.applyAudioVolumes();
+        this.manager?.context.applyAudioVolumes(config.sfxVolume, config.musicVolume);
     }
 
     private toggleSlider(entry: MenuEntryDef): void {
@@ -342,7 +342,9 @@ export class OptionsMenuScreen extends MenuScreen {
             // Apply the volume change live while the slider moves, and give
             // audible feedback on the SFX slider.
             if (entry.slider.value !== before) {
-                this.manager?.context.applyAudioVolumes();
+                const sfxValue = this.sfxEntry.slider?.enabled ? (this.sfxEntry.slider?.value ?? 0) : 0;
+                const musicValue = this.musicEntry.slider?.enabled ? (this.musicEntry.slider?.value ?? 0) : 0;
+                this.manager?.context.applyAudioVolumes(sfxValue, musicValue);
                 if (entry === this.sfxEntry) {
                     this.manager?.context.playCue("accept");
                 }

@@ -41,8 +41,8 @@ export interface ScreenContext {
     playCue(cueName: string): void;
     /** Port of CreatePlayList + ToggleTrack + Activate. */
     setMusicPlaylist(trackIndices: number[]): void;
-    /** Applies the persisted sfx/music volumes to the audio system. */
-    applyAudioVolumes(): void;
+    /** Applies the given sfx/music volumes to the audio system immediately. */
+    applyAudioVolumes(sfxVolume: number, musicVolume: number): void;
     /** Show a transient toast message. */
     showToast(message: string): void;
     /** The superquadric font used for all screen text. */

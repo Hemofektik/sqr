@@ -127,9 +127,9 @@ export class Game {
                 }
                 void this.audio.activate();
             },
-            applyAudioVolumes: () => {
-                this.audio.setSfxVolume(this.userConfig.sfxVolume);
-                this.audio.setMusicVolume(this.userConfig.musicVolume);
+            applyAudioVolumes: (sfxVolume, musicVolume) => {
+                this.audio.setSfxVolume(sfxVolume);
+                this.audio.setMusicVolume(musicVolume);
             },
             showToast: (message) => this.showToast(message),
             font: this.font,
