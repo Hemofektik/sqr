@@ -55,6 +55,10 @@ export interface RotationGameHost {
     drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void;
     /** Starts the game background color animation on the global clock. */
     startBackgroundAnimation(color: Vec4): void;
+    /** Port of the game playlist: rotgame tracks 2,3,4,5. */
+    setMusicPlaylist(trackIndices: number[]): void;
+    /** Port of AudioManager.PlayCue. */
+    playCue(cueName: string): void;
     /** The player's Invert Y-Axis setting (port of userConfig.InvertYAxis). */
     invertYAxis: boolean;
 }
@@ -148,6 +152,9 @@ export class RotationGame {
         this.praising = new Praising(host.font);
         this.countdown = new Countdown(host.font, 3.5);
         this.iconUnlockDisplay = new IconUnlockDisplay(host.font, host);
+
+        // Port of the RotationGame constructor playlist.
+        host.setMusicPlaylist([2, 3, 4, 5]);
 
         // Port of camFuzzingRotationCurve (0,0 -> 0.2,0 -> 1,1 smooth).
         const camFuzzingRotationCurve = new Curve();
@@ -310,6 +317,8 @@ export class RotationGame {
                 this.scoreBoard.setScoreToAdd(1000 + Math.floor(Math.max(0, 9 - duration)) * 1000);
                 this.timeBoard.addTimeBonus(Math.max(0, 5 - duration));
                 this.praising.startPraising(totalGameTime, duration);
+                // Port of AudioManager.PlayCue("validate").
+                this.host.playCue("validate");
                 this.statistics.numberOfPuzzlesSolved++;
             }
 

@@ -95,6 +95,9 @@ export class MainMenuScreen extends MenuScreen {
         } else if (this.firstTimeStarted) {
             this.firstTimeStarted = false;
             this.manager?.context.startBackgroundAnimation([1, 0.7, 0.2, 1], [0.2, 0.2, 0.2, 1]);
+            // Port of screenManager_OnEnteringMainMenu: reactivate the menu
+            // music when the main menu becomes active again.
+            this.manager?.context.setMusicPlaylist([0]);
         }
     }
 }
@@ -309,6 +312,8 @@ export class OptionsMenuScreen extends MenuScreen {
         config.musicVolume = music.slider?.enabled ? (music.slider?.value ?? 0) : 0;
         config.brightness = brightness.slider?.enabled ? (brightness.slider?.value ?? 0) : 0.5;
         config.save();
+        // Apply the new volumes live (the original's audio events do this).
+        this.manager?.context.applyAudioVolumes();
     }
 
     private toggleSlider(entry: MenuEntryDef): void {
@@ -428,6 +433,8 @@ export class CreditsScreen extends GameScreen {
         if (this.firstTimeStarted) {
             this.firstTimeStarted = false;
             this.manager?.context.startBackgroundAnimation([0, 0, 0, 1], [0, 0, 0, 1]);
+            // Port of CreditsScreen.LoadContent: track 5.
+            this.manager?.context.setMusicPlaylist([5]);
         }
     }
 
@@ -546,6 +553,8 @@ export class HighscoreScreen extends GameScreen {
         if (this.firstTimeStarted) {
             this.firstTimeStarted = false;
             this.manager?.context.startBackgroundAnimation([0.2, 0.2, 0.2, 1], [0, 0.05, 0.1, 1]);
+            // Port of the HighscoreScreen music (track 1).
+            this.manager?.context.setMusicPlaylist([1]);
         }
     }
 
@@ -691,6 +700,8 @@ export class GalleryScreen extends GameScreen {
         if (this.firstTimeStarted) {
             this.firstTimeStarted = false;
             this.manager?.context.startBackgroundAnimation([0.2, 0.6, 0.8, 1], [0.1, 0.3, 0.7, 1]);
+            // Port of GalleryScreen.LoadContent: track 5.
+            this.manager?.context.setMusicPlaylist([5]);
             void this.loadCategory();
         }
     }

@@ -11,6 +11,7 @@ import { loadIconImage } from "./IconProvider.ts";
 import { RotationGameScreen } from "./RotationGameScreen.ts";
 import type { GameMode, IconImage, RotationGameHost } from "./RotationGame.ts";
 import { UserConfig } from "./UserConfig.ts";
+import { AudioManager } from "./AudioManager.ts";
 import {
     MainMenuScreen,
     MessageBoxScreen,
@@ -45,6 +46,7 @@ export class Game {
     public readonly font: SQFont;
     public readonly screenManager: ScreenManager;
     public readonly userConfig: UserConfig;
+    public readonly audio: AudioManager;
     private context: ScreenContext | undefined;
     public gameTime = 0;
     private lastFrameMs = performance.now();
@@ -75,6 +77,33 @@ export class Game {
 
         this.userConfig = new UserConfig(ICON_CATEGORIES.length);
 
+        // Port of InitAudio: the track order matches AddTrack.
+        this.audio = new AudioManager(
+            [
+                "menu.ogg", // 0: menu
+                "highscore.ogg", // 1: highscore
+                "rotgame1.ogg", // 2: rotgame1
+                "rotgame2.ogg", // 3: rotgame2
+                "quadtris1.ogg", // 4: quadtris1
+                "credits.ogg", // 5: credits
+                "racemusic01.ogg", // 6: racemusic01
+            ],
+            this.userConfig.sfxVolume,
+            this.userConfig.musicVolume,
+        );
+        const unlockAudio = (): void => {
+            this.audio.unlock();
+            // Port of screenManager_OnEnteringMainMenu: the default playlist
+            // has only the menu track enabled.
+            this.audio.enableAllTracks(false);
+            this.audio.toggleTrack(0);
+            void this.audio.play();
+            window.removeEventListener("pointerdown", unlockAudio);
+            window.removeEventListener("keydown", unlockAudio);
+        };
+        window.addEventListener("pointerdown", unlockAudio);
+        window.addEventListener("keydown", unlockAudio);
+
         const context: ScreenContext = {
             gameTime: 0,
             dt: 0,
@@ -85,6 +114,21 @@ export class Game {
             getNumIcons: (category) => this.numIconsFor(category),
             getNumIconsUnlocked: (categoryIndex) => this.userConfig.getNumIconsUnlocked(categoryIndex),
             userConfig: this.userConfig,
+            playCue: (cueName) => {
+                void this.audio.playCue(cueName);
+            },
+            setMusicPlaylist: (trackIndices: number[]) => {
+                // Port of CreatePlayList/EnableAllTracks/ToggleTrack/Activate.
+                this.audio.enableAllTracks(false);
+                for (const index of trackIndices) {
+                    this.audio.toggleTrack(index);
+                }
+                void this.audio.activate();
+            },
+            applyAudioVolumes: () => {
+                this.audio.setSfxVolume(this.userConfig.sfxVolume);
+                this.audio.setMusicVolume(this.userConfig.musicVolume);
+            },
             showToast: (message) => this.showToast(message),
             font: this.font,
             viewportWidth: 0,
@@ -554,6 +598,16 @@ export class Game {
             startBackgroundAnimation: (color) => {
                 // Only the grid background is visible during the game.
                 this.background.startAnimation(this.gameTime, new Vec4(1, 1, 1, 1), color);
+            },
+            setMusicPlaylist: (trackIndices) => {
+                this.audio.enableAllTracks(false);
+                for (const index of trackIndices) {
+                    this.audio.toggleTrack(index);
+                }
+                void this.audio.activate();
+            },
+            playCue: (cueName) => {
+                void this.audio.playCue(cueName);
             },
             invertYAxis: this.userConfig.invertYAxis,
         };

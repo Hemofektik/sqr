@@ -22,7 +22,6 @@ import type { SQFont } from "./SQFont.ts";
 import type { Camera, Scene } from "three";
 import type { IconImage } from "./RotationGame.ts";
 import type { UserConfig } from "./UserConfig.ts";
-
 export interface ScreenContext {
     /** Total game time in seconds. */
     gameTime: number;
@@ -38,6 +37,12 @@ export interface ScreenContext {
     getNumIconsUnlocked(categoryIndex: number): number;
     /** The player's persisted settings. */
     userConfig: UserConfig;
+    /** Port of AudioManager.PlayCue. */
+    playCue(cueName: string): void;
+    /** Port of CreatePlayList + ToggleTrack + Activate. */
+    setMusicPlaylist(trackIndices: number[]): void;
+    /** Applies the persisted sfx/music volumes to the audio system. */
+    applyAudioVolumes(): void;
     /** Show a transient toast message. */
     showToast(message: string): void;
     /** The superquadric font used for all screen text. */
