@@ -253,7 +253,11 @@ export class MenuScreen extends GameScreen {
     public activateSelected(): void {
         const entry = this.menuEntries[this.selectedEntry];
         if (entry !== undefined) {
-            entry.selected(entry);
+            // Mouse click on a slider selects it (adjust via left/right keys);
+            // firing toggleSlider on click would disable it unexpectedly.
+            if (entry.slider === undefined) {
+                entry.selected(entry);
+            }
         }
     }
 }

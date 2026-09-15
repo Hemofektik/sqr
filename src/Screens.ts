@@ -330,9 +330,13 @@ export class OptionsMenuScreen extends MenuScreen {
         if (entry?.slider !== undefined) {
             if (this.heldKeys.left) {
                 entry.slider.value = Math.max(0, entry.slider.value - dt);
+                // Port of SliderMenuEntry.DecValue: adjusting enables the slider.
+                entry.slider.enabled = true;
             }
             if (this.heldKeys.right) {
                 entry.slider.value = Math.min(1, entry.slider.value + dt);
+                // Port of SliderMenuEntry.IncValue.
+                entry.slider.enabled = true;
             }
         }
 
