@@ -131,6 +131,9 @@ export class Game {
                 this.audio.setSfxVolume(sfxVolume);
                 this.audio.setMusicVolume(musicVolume);
             },
+            applyBrightness: () => {
+                this.applyBrightness();
+            },
             showToast: (message) => this.showToast(message),
             font: this.font,
             viewportWidth: 0,
@@ -644,6 +647,38 @@ export class Game {
         this.updateLayout();
     }
 
+    /**
+     * Port of the brightness setting (SQRGame.cs): it drove the gamma power
+     * of the bloom-combine pass, pow(color, gamma) with gamma in 0.4545..2.2.
+     * The port applies the same curve as an SVG gamma filter on the canvases.
+     */
+    private readonly brightnessGammaMin = 0.4545454545;
+    private readonly brightnessGammaMax = 2.2;
+
+    private applyBrightness(): void {
+        const brightness = this.userConfig.brightness;
+        // Port of the original's gamma power formula.
+        const power = brightness < 0.5
+            ? (0.5 - brightness) * 2 * (this.brightnessGammaMax - 1) + 1
+            : (1 - brightness) * 2 * (1 - this.brightnessGammaMin) + this.brightnessGammaMin;
+
+        const feFuncs = document.querySelectorAll("#brightness-gamma feFuncR, #brightness-gamma feFuncG, #brightness-gamma feFuncB");
+        feFuncs.forEach((feFunc) => {
+            feFunc.setAttribute("exponent", String(power));
+        });
+
+        // Apply to every rendered canvas. Note the SVG filter works in sRGB,
+        // matching the shader's pow() on the final color.
+        const filter = `url(#brightness-gamma)`;
+        this.canvas.style.filter = filter;
+        for (const id of ["icon-preview", "icon-unlock", "gallery"]) {
+            const el = document.getElementById(id);
+            if (el !== null) {
+                el.style.filter = filter;
+            }
+        }
+    }
+
     private updateLayout(): void {
         // The original always rendered into a fixed 16:9 backbuffer (1280x720)
         // with the frustum (-1.6..1.6, -0.9..0.9). Letterbox that frustum into
@@ -667,6 +702,7 @@ export class Game {
         this.updatePreviewLayout();
         this.updateUnlockLayout();
         this.updateGalleryLayout();
+        this.applyBrightness();
     }
 
     private handleKey(event: KeyboardEvent, down: boolean): void {

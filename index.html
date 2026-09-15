@@ -9,6 +9,16 @@
 </head>
 
 <body>
+    <!-- Port of the bloom-combine gamma: brightness drives pow(color, gamma). -->
+    <svg width="0" height="0" style="position:absolute">
+        <filter id="brightness-gamma" color-interpolation-filters="sRGB">
+            <feComponentTransfer>
+                <feFuncR type="gamma" amplitude="1" exponent="1" offset="0"/>
+                <feFuncG type="gamma" amplitude="1" exponent="1" offset="0"/>
+                <feFuncB type="gamma" amplitude="1" exponent="1" offset="0"/>
+            </feComponentTransfer>
+        </filter>
+    </svg>
     <canvas id="canvas">Sorry, no canvas for you!</canvas>
     <div id="toast" class="hidden"></div>
     <script type="module" src="/src/main.ts"></script>
