@@ -78,9 +78,13 @@ export class MenuScreen extends GameScreen {
             this.onBackRequest();
         } else if (action === "left" || action === "right") {
             // Port of MenuScreen.HandleInput: MenuLeft/MenuRight trigger the
-            // selected entry (OptionsMenuScreen relies on this to cycle its
-            // sliders, and RotationGameModeScreen its category).
-            this.menuEntries[this.selectedEntry]?.selected(this.menuEntries[this.selectedEntry] as MenuEntryDef);
+            // selected entry only for non-slider entries (the original's
+            // OptionsMenuScreen checks `sme == null`). Sliders are adjusted
+            // continuously via heldKeys in OptionsMenuScreen.Update.
+            const entry = this.menuEntries[this.selectedEntry];
+            if (entry !== undefined && entry.slider === undefined) {
+                entry.selected(entry);
+            }
         }
     }
 
