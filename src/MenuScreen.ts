@@ -69,12 +69,17 @@ export class MenuScreen extends GameScreen {
     /** Port of MenuScreen.HandleInput. */
     public handleMenuInput(action: "up" | "down" | "select" | "cancel" | "left" | "right"): void {
         if (action === "up") {
+            // Port of PlayCue: navigation sounds.
+            this.manager?.context.playCue("cancel");
             this.selectedEntry = (this.selectedEntry + this.menuEntries.length - 1) % this.menuEntries.length;
         } else if (action === "down") {
+            this.manager?.context.playCue("cancel");
             this.selectedEntry = (this.selectedEntry + 1) % this.menuEntries.length;
         } else if (action === "select") {
+            this.manager?.context.playCue("accept");
             this.menuEntries[this.selectedEntry]?.selected(this.menuEntries[this.selectedEntry] as MenuEntryDef);
         } else if (action === "cancel") {
+            this.manager?.context.playCue("cancel");
             this.onBackRequest();
         } else if (action === "left" || action === "right") {
             // Port of MenuScreen.HandleInput: MenuLeft/MenuRight trigger the

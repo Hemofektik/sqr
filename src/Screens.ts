@@ -328,6 +328,7 @@ export class OptionsMenuScreen extends MenuScreen {
         // Slider adjustment with left/right (OptionsMenuScreen.HandleInput).
         const entry = this.menuEntries[this.selectedEntry];
         if (entry?.slider !== undefined) {
+            const before = entry.slider.value;
             if (this.heldKeys.left) {
                 entry.slider.value = Math.max(0, entry.slider.value - dt);
                 // Port of SliderMenuEntry.DecValue: adjusting enables the slider.
@@ -337,6 +338,14 @@ export class OptionsMenuScreen extends MenuScreen {
                 entry.slider.value = Math.min(1, entry.slider.value + dt);
                 // Port of SliderMenuEntry.IncValue.
                 entry.slider.enabled = true;
+            }
+            // Apply the volume change live while the slider moves, and give
+            // audible feedback on the SFX slider.
+            if (entry.slider.value !== before) {
+                this.manager?.context.applyAudioVolumes();
+                if (entry === this.sfxEntry) {
+                    this.manager?.context.playCue("accept");
+                }
             }
         }
 
