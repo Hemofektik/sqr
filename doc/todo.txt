@@ -5,7 +5,7 @@ Super Quadric Riddle >>> Super Quadriddle
 
 	- XNA to TS Port: 
 			Known remaining gaps (not regressions, just unported features): 
-				- port the audio (sfx and music) by converting (e.g. using ffmpeg) the source audio files into web friendly formats (ogg/webm, mp3) and using the Web Audio API or HTML5 Audio for playback
+				- DONE: audio ported (Ogg Vorbis + Web Audio API, playlists + sfx cues)
 
 	Game1: http://www.bobblebrook.com/games/coign-of-vantage
 
