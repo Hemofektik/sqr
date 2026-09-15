@@ -341,15 +341,19 @@ export class OptionsMenuScreen extends MenuScreen {
                 // Port of SliderMenuEntry.IncValue.
                 entry.slider.enabled = true;
             }
-            // Apply the volume change live while the slider moves, and give
-            // audible feedback on the SFX slider. Brightness applies live too.
+            // Apply the slider's effect live while it moves. Each slider only
+            // triggers its own setting: volumes for the volume sliders,
+            // brightness for the brightness slider.
             if (entry.slider.value !== before) {
-                const sfxValue = this.sfxEntry.slider?.enabled ? (this.sfxEntry.slider?.value ?? 0) : 0;
-                const musicValue = this.musicEntry.slider?.enabled ? (this.musicEntry.slider?.value ?? 0) : 0;
-                this.manager?.context.applyAudioVolumes(sfxValue, musicValue);
-                this.manager?.context.applyBrightness(entry.slider?.value ?? 0.5);
-                if (entry === this.sfxEntry) {
-                    this.manager?.context.playCue("accept");
+                if (entry === this.sfxEntry || entry === this.musicEntry) {
+                    const sfxValue = this.sfxEntry.slider?.enabled ? (this.sfxEntry.slider?.value ?? 0) : 0;
+                    const musicValue = this.musicEntry.slider?.enabled ? (this.musicEntry.slider?.value ?? 0) : 0;
+                    this.manager?.context.applyAudioVolumes(sfxValue, musicValue);
+                    if (entry === this.sfxEntry) {
+                        this.manager?.context.playCue("accept");
+                    }
+                } else if (entry === this.brightnessEntry) {
+                    this.manager?.context.applyBrightness(entry.slider?.value ?? 0.5);
                 }
             }
         }

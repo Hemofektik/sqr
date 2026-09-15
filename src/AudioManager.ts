@@ -164,6 +164,11 @@ export class AudioManager {
             return;
         }
         for (const index of indices) {
+            // Already playing this track: keep it running instead of
+            // restarting (the original's Activate was a no-op in that case).
+            if (this.currentTrack === index && this.currentSource !== undefined) {
+                return;
+            }
             await this.playTrack(index);
             return;
         }
