@@ -237,7 +237,7 @@ export class IconMap {
     }
 
     /** Port of IconMap.Update. */
-    public update(totalGameTime: number, cameraPos: Vec3, viewMatrix: Mat4): void {
+    public update(totalGameTime: number, cameraPos: Vec3, _viewMatrix: Mat4, flatten: number): void {
         let shininess = 0;
         if (this.puzzleCompleteAnimation.isRunning) {
             this.puzzleCompleteAnimation.update(totalGameTime);
@@ -254,11 +254,9 @@ export class IconMap {
             }
         }
 
-        const camDir = Vec3.scale(cameraPos, -1).normalize();
-        let camOriginDistance = Math.pow(Math.min(1, 1 - Vec3.dot(camDir, Vec3.forward)), 0.3);
-        if (Vec3.dot(viewMatrix.up(), Vec3.up) < 0) {
-            camOriginDistance = 1; // prevents solving the puzzle upside down
-        }
+        // Port of the original's camOriginDistance: as the puzzle flattens,
+        // the Z spread of the pixels collapses (flatten 1 = fully flat).
+        const camOriginDistance = Math.pow(Math.min(1, Math.max(0, 1 - flatten)), 0.3);
 
         const sorted: SuperQuadric[] = [];
         for (const pq of this.pixels) {

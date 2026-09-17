@@ -117,11 +117,38 @@ function slerp(a: Quat, b: Quat, t: number): Quat {
     );
 }
 
-/** Angle (radians) between the orientation and the front-facing identity. */
-function angleToIdentity(q: Quat): number {
-    // For unit quaternions, |w| = cos(angle/2) of the rotation from identity.
-    const dot = Math.abs(q.w) / Math.max(1e-8, Math.sqrt(q.lengthSquared()));
-    return 2 * Math.acos(Math.min(1, Math.max(-1, dot)));
+/**
+ * How parallel the icon plane is to the screen: 0 = exactly parallel
+ * (front or back facing), 1 = perpendicular. Measured as the angle between
+ * the icon's local Z axis and the screen viewing axis (world Z).
+ */
+function parallelToScreen(q: Quat): number {
+    const forward = q.rotate(new Vec3(0, 0, 1)).normalize();
+    // |dot| because back-facing (upside down) is still parallel.
+    const dot = Math.abs(forward.z);
+    return 1 - dot;
+}
+
+/**
+ * The orientation with all tilt removed (the icon plane exactly parallel to
+ * the screen), keeping the roll (rotation around the viewing axis) intact.
+ */
+function flattenTilt(q: Quat): Quat {
+    const forward = q.rotate(new Vec3(0, 0, 1)).normalize();
+    // Align the forward axis with the nearest facing direction (front/back),
+    // which leaves only the roll component of the original orientation.
+    const target = new Vec3(0, 0, forward.z >= 0 ? 1 : -1);
+    const d = Vec3.dot(forward, target);
+    if (d > -0.99999) {
+        // Shortest-arc rotation from forward to target.
+        const u = Vec3.cross(forward, target);
+        return new Quat(u.x, u.y, u.z, 1 + d).normalize().multiply(q).normalize();
+    }
+    // Forward points exactly opposite the target: 180 degrees around any
+    // axis perpendicular to the forward vector.
+    const helper = Math.abs(forward.x) < 0.9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0);
+    const u = Vec3.cross(helper, forward).normalize();
+    return new Quat(u.x, u.y, u.z, 0).multiply(q).normalize();
 }
 
 export class RotationGame {
@@ -133,6 +160,8 @@ export class RotationGame {
     /** Object orientation: what the camera quaternion was, applied to the icon. */
     private objectOrientation = Quat.identity();
     private objectRotation = Mat4.identity();
+    /** How flat the puzzle is rendered: 0 = full Z spread, 1 = flat. */
+    private flatten = 0;
     private camRadius = 20;
     private camPosition = new Vec3(0, 0, 20);
     private viewMatrix = Mat4.identity();
@@ -296,6 +325,7 @@ export class RotationGame {
     private startNewIconRiddle(totalGameTime: number): void {
         this.puzzleSolved = false;
         this.puzzleSolvedCompleteHenceDisableLogic = false;
+        this.flatten = 0;
 
         this.camFuzzingYaw = this.rnd() * Math.PI * 2 - Math.PI;
         this.camFuzzingPitch = this.rnd() * Math.PI - Math.PI * 0.5;
@@ -347,12 +377,12 @@ export class RotationGame {
 
         const allowInput = !this.puzzleSolvedCompleteHenceDisableLogic && !this.gameOver && !this.timeIsStoppedInternally;
         if (allowInput) {
-            // Port of the solve detection: the "distance" is now the angle
-            // between the current object orientation and front-facing identity.
-            const angle = angleToIdentity(this.objectOrientation);
-            const distanceSQR = angle * angle;
+            // New solve rule: the image plane must be parallel to the screen.
+            // The roll (rotation around the viewing axis) does not matter.
+            const parallel = parallelToScreen(this.objectOrientation);
+            const distanceSQR = parallel * parallel;
 
-            if (angle === 0) {
+            if (parallel < 0.00005) {
                 this.im.startPuzzleCompleteAnimation(totalGameTime);
                 this.puzzleSolvedCompleteHenceDisableLogic = true;
                 this.puzzleSolvedCompleteTime = totalGameTime;
@@ -371,14 +401,19 @@ export class RotationGame {
                 this.puzzleSolved = true;
             }
 
-            // Puzzle solved: smoothly align the object back to the front.
+            // Puzzle solved: smoothly remove the remaining tilt (the roll is
+            // preserved), ending exactly parallel to the screen.
             if (this.puzzleSolved) {
+                const target = flattenTilt(this.objectOrientation);
                 const smoothAlignSpeed = Math.min(1, 30 * dt);
-                this.objectOrientation = slerp(this.objectOrientation, Quat.identity(), smoothAlignSpeed).normalize();
-                if (angle < 0.00005) {
-                    this.objectOrientation = Quat.identity();
+                this.objectOrientation = slerp(this.objectOrientation, target, smoothAlignSpeed).normalize();
+                if (parallel < 0.00005) {
+                    this.objectOrientation = target;
+                    this.flatten = 1;
                 }
             }
+        } else {
+            this.flatten = Math.max(0, this.flatten - dt * 2);
         }
 
         this.camRadius += ((this.iconImage?.width ?? 16) * 1.25 - this.camRadius) * dt * 10;
@@ -401,7 +436,7 @@ export class RotationGame {
 
         // The background is updated by Game with the global clock; the game
         // only triggers its color animation via the host.
-        this.im.update(totalGameTime, this.camPosition, this.viewMatrix);
+        this.im.update(totalGameTime, this.camPosition, this.viewMatrix, this.flatten);
         this.praising.update(totalGameTime);
         if (this.countdown.update(dt)) {
             this.puzzleStartedTime = totalGameTime;
@@ -492,8 +527,8 @@ export class RotationGame {
         // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
         const invertYAxis = this.host.invertYAxis ? -1 : 1;
         const rotationSpeed = 5 * dt;
-        const angle = angleToIdentity(this.objectOrientation);
-        const distanceSQR = angle * angle;
+        const parallel = parallelToScreen(this.objectOrientation);
+        const distanceSQR = parallel * parallel;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
         const yaw = yawDelta * rotationSpeed * factor;
