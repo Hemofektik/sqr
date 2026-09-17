@@ -108,11 +108,11 @@ export class RotationGameModeScreen extends MenuScreen {
     private categoryIndex = 0;
     private firstTimeStarted = true;
     private readonly onStartGame:
-        | ((gameMode: "TimeAttack" | "Challenge", categoryIndex: number, categoryName: string) => void)
+        | ((gameMode: "TimeAttack" | "Challenge" | "FreePlay", categoryIndex: number, categoryName: string) => void)
         | undefined;
 
     public constructor(
-        onStartGame?: (gameMode: "TimeAttack" | "Challenge", categoryIndex: number, categoryName: string) => void,
+        onStartGame?: (gameMode: "TimeAttack" | "Challenge" | "FreePlay", categoryIndex: number, categoryName: string) => void,
     ) {
         super("Game Mode");
         this.onStartGame = onStartGame;
@@ -162,14 +162,12 @@ export class RotationGameModeScreen extends MenuScreen {
     }
 
     private startGame(gameMode: GameModeValue): void {
-        if (gameMode === GameMode.TimeAttack || gameMode === GameMode.Challenge) {
-            const categories = this.manager?.context.getCategories() ?? [];
-            const categoryName = categories[this.categoryIndex] ?? "";
-            const mode: "TimeAttack" | "Challenge" = gameMode === GameMode.Challenge ? "Challenge" : "TimeAttack";
-            this.onStartGame?.(mode, this.categoryIndex, categoryName);
-            return;
-        }
-        this.manager?.context.showToast(`${GAME_MODE_NAMES[gameMode]} is not ported yet.`);
+        const categories = this.manager?.context.getCategories() ?? [];
+        const categoryName = categories[this.categoryIndex] ?? "";
+        const mode: "TimeAttack" | "Challenge" | "FreePlay" =
+            gameMode === GameMode.Challenge ? "Challenge" :
+            gameMode === GameMode.FreePlay ? "FreePlay" : "TimeAttack";
+        this.onStartGame?.(mode, this.categoryIndex, categoryName);
     }
 
     public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
@@ -563,7 +561,7 @@ export class HighscoreScreen extends GameScreen {
 
     /** The game-start hook, provided by Game via the ScreenContext so the
      * in-game highscore exit can rebuild a fully wired main menu. */
-    private onStartGameCallback(): (gameMode: "TimeAttack" | "Challenge", categoryIndex: number, categoryName: string) => void {
+    private onStartGameCallback(): (gameMode: "TimeAttack" | "Challenge" | "FreePlay", categoryIndex: number, categoryName: string) => void {
         return this.manager?.context.startRotationGame ?? (() => undefined);
     }
 

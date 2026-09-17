@@ -27,7 +27,7 @@ export interface IconImage {
     data: Uint8ClampedArray;
 }
 
-export type GameMode = "TimeAttack" | "Challenge";
+export type GameMode = "TimeAttack" | "Challenge" | "FreePlay";
 
 export interface RotationGameHost {
     /** The superquadric font used for HUD text. */

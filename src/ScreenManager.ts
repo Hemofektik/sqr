@@ -71,7 +71,7 @@ export interface ScreenContext {
     /** Display names of all icons of a category, in order. */
     getIconNames(category: string): string[];
     /** Starts a rotation game, replacing the current screens (LoadingScreen.Load). */
-    startRotationGame(gameMode: "TimeAttack" | "Challenge", categoryIndex: number, categoryName: string): void;
+    startRotationGame(gameMode: "TimeAttack" | "Challenge" | "FreePlay", categoryIndex: number, categoryName: string): void;
 }
 
 export abstract class GameScreen {
