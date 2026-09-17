@@ -130,6 +130,17 @@ function parallelToScreen(q: Quat): number {
 }
 
 /**
+ * Same as parallelToScreen but with the angle halved: 1 - cos(angle / 2).
+ * Used for the rotation slow-down and solve snapping so both kick in later
+ * (only when much closer to parallel).
+ */
+function parallelToScreenHalfAngle(q: Quat): number {
+    const cosAngle = Math.abs(q.rotate(new Vec3(0, 0, 1)).normalize().z);
+    const cosHalf = Math.sqrt(Math.min(1, Math.max(0, (1 + cosAngle) / 2)));
+    return 1 - cosHalf;
+}
+
+/**
  * The orientation with all tilt removed (the icon plane exactly parallel to
  * the screen), keeping the roll (rotation around the viewing axis) intact.
  */
@@ -380,7 +391,7 @@ export class RotationGame {
             // New solve rule: the image plane must be parallel to the screen.
             // The roll (rotation around the viewing axis) does not matter.
             const parallel = parallelToScreen(this.objectOrientation);
-            const distanceSQR = parallel * parallel;
+            const distanceSQR = parallelToScreenHalfAngle(this.objectOrientation) ** 2;
 
             if (parallel < 0.00005) {
                 this.im.startPuzzleCompleteAnimation(totalGameTime);
@@ -533,7 +544,7 @@ export class RotationGame {
         // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
         const invertYAxis = this.host.invertYAxis ? -1 : 1;
         const rotationSpeed = 5 * dt;
-        const parallel = parallelToScreen(this.objectOrientation);
+        const parallel = parallelToScreenHalfAngle(this.objectOrientation);
         const distanceSQR = parallel * parallel;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
