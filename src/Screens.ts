@@ -166,7 +166,7 @@ export class RotationGameModeScreen extends MenuScreen {
         const categoryName = categories[this.categoryIndex] ?? "";
         const mode: "TimeAttack" | "Challenge" | "FreePlay" =
             gameMode === GameMode.Challenge ? "Challenge" :
-            gameMode === GameMode.FreePlay ? "FreePlay" : "TimeAttack";
+                gameMode === GameMode.FreePlay ? "FreePlay" : "TimeAttack";
         this.onStartGame?.(mode, this.categoryIndex, categoryName);
     }
 

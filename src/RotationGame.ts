@@ -547,6 +547,25 @@ export class RotationGame {
             .normalize();
     }
 
+    /**
+     * Roll input: rotation around the viewing axis (world Z). Used by the
+     * two-finger rotate gesture. Roll does not affect the solve rule, so
+     * this only spins the image on screen.
+     */
+    public addRollInput(rollDelta: number, dt: number): void {
+        if (this.puzzleSolved || this.timeIsStoppedInternally || this.gameOver) {
+            return;
+        }
+        const rotationSpeed = 5 * dt;
+        const tilt = tiltAngle(this.objectOrientation);
+        const distanceSQR = tilt * tilt;
+        const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
+        const roll = rollDelta * rotationSpeed * factor;
+        this.objectOrientation = Quat.createFromAxisAngle(new Vec3(0, 0, 1), roll)
+            .multiply(this.objectOrientation)
+            .normalize();
+    }
+
     // --- rendering accessors -------------------------------------------------
 
     public getCamPosition(): Vec3 {

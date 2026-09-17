@@ -50,6 +50,10 @@ export class RotationGameScreen extends GameScreen {
         this.rotGame?.addRotationInput(yawDelta, pitchDelta, dt);
     }
 
+    public addRollInput(rollDelta: number, dt: number): void {
+        this.rotGame?.addRollInput(rollDelta, dt);
+    }
+
     public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
         super.update(dt, gameTime, otherScreenHasFocus, coveredByOtherScreen);
         if (this.screenState === "active" || this.rotGame?.isGameOver()) {

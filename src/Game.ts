@@ -208,6 +208,8 @@ export class Game {
         window.addEventListener("keyup", (e) => this.handleKey(e, false));
         window.addEventListener("pointermove", (e) => this.handlePointer(e, false));
         window.addEventListener("pointerdown", (e) => this.handlePointer(e, true));
+        window.addEventListener("pointerup", (e) => this.handlePointerUp(e));
+        window.addEventListener("pointercancel", (e) => this.handlePointerUp(e));
     }
 
     /** Maps window (CSS) pixels into the font's ortho space. */
@@ -227,18 +229,63 @@ export class Game {
             return;
         }
 
-        // Game screen: drag rotates the icon.
+        // Game screen: drag & drop rotates the icon. One finger/drag turns
+        // yaw+pitch, two fingers rotating around their midpoint control roll.
         if (top instanceof RotationGameScreen) {
             if (clicked) {
-                this.dragging = !this.dragging;
-                this.lastDragX = event.clientX;
-                this.lastDragY = event.clientY;
-            } else if (this.dragging) {
-                const dx = event.clientX - (this.lastDragX ?? event.clientX);
-                const dy = event.clientY - (this.lastDragY ?? event.clientY);
-                this.lastDragX = event.clientX;
-                this.lastDragY = event.clientY;
-                top.addRotationInput(-dx * 0.02, -dy * 0.02, 0.016);
+                // Track every active pointer by id (mouse is pointerId 1...,
+                // touch has one id per finger).
+                this.dragPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+                if (this.dragPointers.size === 2) {
+                    // Second finger down: capture the initial angle/center for
+                    // the roll gesture and reset the single-drag anchor.
+                    const [a, b] = this.dragPointers.values();
+                    if (a !== undefined && b !== undefined) {
+                        this.dragRollAnchor = this.pointerPairState(a, b);
+                    }
+                }
+            } else {
+                const prev = this.dragPointers.get(event.pointerId);
+                if (prev !== undefined) {
+                    prev.x = event.clientX;
+                    prev.y = event.clientY;
+                }
+
+                if (this.dragPointers.size === 2) {
+                    // Two-finger gesture: rotation of the finger pair around
+                    // its midpoint controls roll, midpoint motion rotates
+                    // yaw/pitch.
+                    const [a, b] = this.dragPointers.values();
+                    if (a !== undefined && b !== undefined) {
+                        const anchor = this.dragRollAnchor;
+                        if (anchor !== undefined) {
+                            const current = this.pointerPairState(a, b);
+                            // Angle delta (normalized to -pi..pi).
+                            let dAngle = current.angle - anchor.angle;
+                            while (dAngle > Math.PI) dAngle -= Math.PI * 2;
+                            while (dAngle < -Math.PI) dAngle += Math.PI * 2;
+                            top.addRollInput(dAngle * 0.05, 0.016);
+                            this.dragRollAnchor = current;
+
+                            const dcx = current.cx - anchor.cx;
+                            const dcy = current.cy - anchor.cy;
+                            top.addRotationInput(-dcx * 0.01, dcy * 0.01, 0.016);
+                            // Keep yaw/pitch incremental: reset the anchor
+                            // center, keep the angle reference.
+                            this.dragRollAnchor = { ...current };
+                        }
+                    }
+                } else if (this.dragPointers.size === 1) {
+                    // Single pointer: standard drag rotation.
+                    const p = this.dragPointers.get(event.pointerId);
+                    if (p !== undefined) {
+                        const dx = event.clientX - p.x;
+                        const dy = event.clientY - p.y;
+                        top.addRotationInput(-dx * 0.02, -dy * 0.02, 0.016);
+                        p.x = event.clientX;
+                        p.y = event.clientY;
+                    }
+                }
             }
             return;
         }
@@ -257,9 +304,34 @@ export class Game {
         }
     }
 
-    private dragging = false;
-    private lastDragX: number | undefined;
-    private lastDragY: number | undefined;
+    private handlePointerUp(event: PointerEvent): void {
+        this.dragPointers.delete(event.pointerId);
+        if (this.dragPointers.size < 2) {
+            this.dragRollAnchor = undefined;
+        }
+        if (this.dragPointers.size === 1) {
+            // Falling back from two fingers to one: re-anchor the remaining
+            // pointer so the drag does not jump.
+            const [p] = this.dragPointers.values();
+            if (p !== undefined) {
+                p.x = event.clientX;
+                p.y = event.clientY;
+            }
+        }
+    }
+
+    /** Angle (radians) and center of a two-pointer pair, for the roll gesture. */
+    private pointerPairState(a: { x: number; y: number }, b: { x: number; y: number }): { angle: number; cx: number; cy: number } {
+        return {
+            angle: Math.atan2(b.y - a.y, b.x - a.x),
+            cx: (a.x + b.x) / 2,
+            cy: (a.y + b.y) / 2,
+        };
+    }
+
+    /** Active drag pointers by pointerId (mouse or touch). */
+    private readonly dragPointers = new Map<number, { x: number; y: number }>();
+    private dragRollAnchor: { angle: number; cx: number; cy: number } | undefined;
 
     public showToast(message: string): void {
         const toast = document.getElementById("toast");
