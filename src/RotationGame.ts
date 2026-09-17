@@ -118,26 +118,13 @@ function slerp(a: Quat, b: Quat, t: number): Quat {
 }
 
 /**
- * How parallel the icon plane is to the screen: 0 = exactly parallel
- * (front or back facing), 1 = perpendicular. Measured as the angle between
- * the icon's local Z axis and the screen viewing axis (world Z).
+ * Tilt angle (radians) between the icon plane and the screen: 0 = exactly
+ * parallel (front or back facing), pi/2 = perpendicular. Roll is ignored.
+ * Port of the original's camYaw/camPitch distance, which was angle-based.
  */
-function parallelToScreen(q: Quat): number {
-    const forward = q.rotate(new Vec3(0, 0, 1)).normalize();
+function tiltAngle(q: Quat): number {
     // |dot| because back-facing (upside down) is still parallel.
-    const dot = Math.abs(forward.z);
-    return 1 - dot;
-}
-
-/**
- * Same as parallelToScreen but with the angle halved: 1 - cos(angle / 2).
- * Used for the rotation slow-down and solve snapping so both kick in later
- * (only when much closer to parallel).
- */
-function parallelToScreenHalfAngle(q: Quat): number {
-    const cosAngle = Math.abs(q.rotate(new Vec3(0, 0, 1)).normalize().z);
-    const cosHalf = Math.sqrt(Math.min(1, Math.max(0, (1 + cosAngle) / 2)));
-    return 1 - cosHalf;
+    return Math.acos(Math.min(1, Math.abs(q.rotate(new Vec3(0, 0, 1)).normalize().z)));
 }
 
 /**
@@ -390,10 +377,10 @@ export class RotationGame {
         if (allowInput) {
             // New solve rule: the image plane must be parallel to the screen.
             // The roll (rotation around the viewing axis) does not matter.
-            const parallel = parallelToScreen(this.objectOrientation);
-            const distanceSQR = parallelToScreenHalfAngle(this.objectOrientation) ** 2;
+            const tilt = tiltAngle(this.objectOrientation);
+            const distanceSQR = tilt * tilt;
 
-            if (parallel < 0.00005) {
+            if (tilt < 0.00005) {
                 this.im.startPuzzleCompleteAnimation(totalGameTime);
                 this.puzzleSolvedCompleteHenceDisableLogic = true;
                 this.puzzleSolvedCompleteTime = totalGameTime;
@@ -418,14 +405,14 @@ export class RotationGame {
                 const target = flattenTilt(this.objectOrientation);
                 const smoothAlignSpeed = Math.min(1, 30 * dt);
                 this.objectOrientation = slerp(this.objectOrientation, target, smoothAlignSpeed).normalize();
-                if (parallel < 0.00005) {
+                if (tilt < 0.00005) {
                     this.objectOrientation = target;
                 }
             }
 
             // Squash the Z spread continuously as the icon plane gets parallel
             // to the screen (port of the angle-driven camOriginDistance).
-            this.flatten = 1 - Math.min(1, parallel);
+            this.flatten = 1 - Math.min(1, tilt / (Math.PI / 2));
         } else if (this.puzzleSolvedCompleteHenceDisableLogic && this.isPuzzleCompleteAnimPlaying(totalGameTime)) {
             // Stay flat while the solve celebration animation plays.
             this.flatten = 1;
@@ -544,8 +531,8 @@ export class RotationGame {
         // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
         const invertYAxis = this.host.invertYAxis ? -1 : 1;
         const rotationSpeed = 5 * dt;
-        const parallel = parallelToScreenHalfAngle(this.objectOrientation);
-        const distanceSQR = parallel * parallel;
+        const tilt = tiltAngle(this.objectOrientation);
+        const distanceSQR = tilt * tilt;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
         const yaw = yawDelta * rotationSpeed * factor;
