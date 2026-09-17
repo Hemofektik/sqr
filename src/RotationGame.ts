@@ -489,16 +489,18 @@ export class RotationGame {
         const distanceSQR = angle * angle;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
-        // Yaw around the camera's current up axis, pitch around its right
-        // axis: deltas stay relative to the current orientation. Inverted
-        // once here so both yaw and pitch flip together with the setting.
+        // Simple turntable controls in camera space:
+        // - yaw: rotate around the fixed world up axis
+        // - pitch: rotate around the camera's right axis (screen-horizontal),
+        //   so "down" always rotates the top of the icon towards the viewer.
+        // Deltas are pre-multiplied (world space), keeping the controls
+        // predictable regardless of the current orientation.
         const yaw = yawDelta * rotationSpeed * factor;
         const pitch = pitchDelta * rotationSpeed * factor * invertYAxis;
         const rightAxis = this.camOrientation.rotate(new Vec3(1, 0, 0)).normalize();
-        const upAxis = this.camOrientation.rotate(Vec3.up).normalize();
-        this.camOrientation = this.camOrientation
-            .multiply(Quat.createFromAxisAngle(upAxis, yaw))
+        this.camOrientation = Quat.createFromAxisAngle(Vec3.up, yaw)
             .multiply(Quat.createFromAxisAngle(rightAxis, pitch))
+            .multiply(this.camOrientation)
             .normalize();
     }
 
