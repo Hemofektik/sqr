@@ -431,7 +431,9 @@ export class RotationGame {
 
     /** Rotation input (port of the stick handling with deadzone + falloff). */
     public addRotationInput(yawDelta: number, pitchDelta: number, dt: number): void {
-        if (this.puzzleSolved) {
+        // Port of the allowInput gate: no rotation while the countdown runs,
+        // during the solve animation, or after the game is over.
+        if (this.puzzleSolved || this.timeIsStoppedInternally || this.gameOver) {
             return;
         }
         // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
