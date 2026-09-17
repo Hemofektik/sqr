@@ -130,7 +130,9 @@ export class RotationGame {
     private readonly host: RotationGameHost;
     private readonly gameMode: GameMode;
 
-    private camOrientation = Quat.identity();
+    /** Object orientation: what the camera quaternion was, applied to the icon. */
+    private objectOrientation = Quat.identity();
+    private objectRotation = Mat4.identity();
     private camRadius = 20;
     private camPosition = new Vec3(0, 0, 20);
     private viewMatrix = Mat4.identity();
@@ -324,18 +326,18 @@ export class RotationGame {
 
         if (this.camFuzzingAnimation.isRunning && dt > 0) {
             this.camFuzzingAnimation.update(totalGameTime);
-            // Ease the orientation towards the fuzz target (yaw/pitch Euler).
+            // Ease the object orientation towards the fuzz target (yaw/pitch Euler).
             const target = Quat.createFromYawPitchRoll(this.camFuzzingYaw, this.camFuzzingPitch, 0);
-            this.camOrientation = slerp(this.camOrientation, target, this.camFuzzingAnimation.progress).normalize();
+            this.objectOrientation = slerp(this.objectOrientation, target, this.camFuzzingAnimation.progress).normalize();
         }
 
         if (this.gameOver) {
             // Slow drift after the game ended (port of the sign-based creep).
             const driftYaw = Math.sign(this.camFuzzingYaw) * dt * 0.2;
             const driftPitch = Math.sign(this.camFuzzingPitch) * dt * 0.2;
-            this.camOrientation = this.camOrientation
-                .multiply(Quat.createFromAxisAngle(Vec3.up, driftYaw))
+            this.objectOrientation = Quat.createFromAxisAngle(Vec3.up, driftYaw)
                 .multiply(Quat.createFromAxisAngle(new Vec3(1, 0, 0), driftPitch))
+                .multiply(this.objectOrientation)
                 .normalize();
         }
 
@@ -346,8 +348,8 @@ export class RotationGame {
         const allowInput = !this.puzzleSolvedCompleteHenceDisableLogic && !this.gameOver && !this.timeIsStoppedInternally;
         if (allowInput) {
             // Port of the solve detection: the "distance" is now the angle
-            // between the current orientation and the front-facing identity.
-            const angle = angleToIdentity(this.camOrientation);
+            // between the current object orientation and front-facing identity.
+            const angle = angleToIdentity(this.objectOrientation);
             const distanceSQR = angle * angle;
 
             if (angle === 0) {
@@ -369,25 +371,29 @@ export class RotationGame {
                 this.puzzleSolved = true;
             }
 
-            // Puzzle solved: smoothly align the camera back to the front.
+            // Puzzle solved: smoothly align the object back to the front.
             if (this.puzzleSolved) {
                 const smoothAlignSpeed = Math.min(1, 30 * dt);
-                this.camOrientation = slerp(this.camOrientation, Quat.identity(), smoothAlignSpeed).normalize();
+                this.objectOrientation = slerp(this.objectOrientation, Quat.identity(), smoothAlignSpeed).normalize();
                 if (angle < 0.00005) {
-                    this.camOrientation = Quat.identity();
+                    this.objectOrientation = Quat.identity();
                 }
             }
         }
 
         this.camRadius += ((this.iconImage?.width ?? 16) * 1.25 - this.camRadius) * dt * 10;
 
-        const camRotation = this.camOrientation.toMat4();
-        this.camPosition = Vec3.scale(camRotation.backward(), this.camRadius);
+        // The camera is fixed in front of the object (port of the original's
+        // view at radius distance looking down -Z). The rotation lives in the
+        // object orientation quaternion, applied to the icon instances.
+        this.camPosition = new Vec3(0, 0, this.camRadius);
         this.viewMatrix = Mat4.createLookAt(
             this.camPosition,
-            Vec3.add(this.camPosition, camRotation.forward()),
-            camRotation.up(),
+            new Vec3(0, 0, 0),
+            Vec3.up,
         );
+        this.objectRotation = this.objectOrientation.toMat4();
+        this.im.setObjectRotation(this.objectRotation);
 
         if (this.timeIsStoppedInternally || this.isPuzzleCompleteAnimPlaying(totalGameTime)) {
             this.timeBoard.Time += dt;
@@ -472,9 +478,10 @@ export class RotationGame {
 
     /**
      * Rotation input (port of the stick handling with deadzone + falloff).
-     * The deltas are applied as rotations around the *current* camera axes
-     * (quaternion accumulation), so the rotation always feels relative to
-     * how the icon is currently oriented.
+     * With the camera fixed in front, world axes ARE screen axes: yaw is a
+     * rotation around world up, pitch around screen-right (world X). The
+     * deltas are pre-multiplied so each input is exactly a screen-space turn
+     * of the object.
      */
     public addRotationInput(yawDelta: number, pitchDelta: number, dt: number): void {
         // Port of the allowInput gate: no rotation while the countdown runs,
@@ -485,22 +492,15 @@ export class RotationGame {
         // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
         const invertYAxis = this.host.invertYAxis ? -1 : 1;
         const rotationSpeed = 5 * dt;
-        const angle = angleToIdentity(this.camOrientation);
+        const angle = angleToIdentity(this.objectOrientation);
         const distanceSQR = angle * angle;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
-        // Simple turntable controls in camera space:
-        // - yaw: rotate around the fixed world up axis
-        // - pitch: rotate around the camera's right axis (screen-horizontal),
-        //   so "down" always rotates the top of the icon towards the viewer.
-        // Deltas are pre-multiplied (world space), keeping the controls
-        // predictable regardless of the current orientation.
         const yaw = yawDelta * rotationSpeed * factor;
         const pitch = pitchDelta * rotationSpeed * factor * invertYAxis;
-        const rightAxis = this.camOrientation.rotate(new Vec3(1, 0, 0)).normalize();
-        this.camOrientation = Quat.createFromAxisAngle(Vec3.up, yaw)
-            .multiply(Quat.createFromAxisAngle(rightAxis, pitch))
-            .multiply(this.camOrientation)
+        this.objectOrientation = Quat.createFromAxisAngle(Vec3.up, yaw)
+            .multiply(Quat.createFromAxisAngle(new Vec3(1, 0, 0), pitch))
+            .multiply(this.objectOrientation)
             .normalize();
     }
 

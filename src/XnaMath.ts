@@ -203,6 +203,16 @@ export class Mat4 {
         return new Vec3(e[12] ?? 0, e[13] ?? 0, e[14] ?? 0);
     }
 
+    /** Transforms a direction/point by the matrix (row-vector, w=1 for points). */
+    public transformVector(v: Vec3): Vec3 {
+        const e = this.elements;
+        return new Vec3(
+            (v.x * (e[0] ?? 0)) + (v.y * (e[4] ?? 0)) + (v.z * (e[8] ?? 0)) + (e[12] ?? 0),
+            (v.x * (e[1] ?? 0)) + (v.y * (e[5] ?? 0)) + (v.z * (e[9] ?? 0)) + (e[13] ?? 0),
+            (v.x * (e[2] ?? 0)) + (v.y * (e[6] ?? 0)) + (v.z * (e[10] ?? 0)) + (e[14] ?? 0),
+        );
+    }
+
     public setTranslation(v: Vec3): this {
         this.elements[12] = v.x;
         this.elements[13] = v.y;

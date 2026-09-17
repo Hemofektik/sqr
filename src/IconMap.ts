@@ -91,6 +91,12 @@ export class IconMap {
     private colorMap: Uint8ClampedArray | undefined;
     private lastMainColor = new Vec4(0, 0, 0, 0);
     private sortedSQS: SuperQuadric[] = [];
+    private objectRotation = Mat4.identity();
+
+    /** Sets the object rotation baked into every instance (fixed-camera mode). */
+    public setObjectRotation(rotation: Mat4): void {
+        this.objectRotation = rotation;
+    }
 
     public constructor() {
         for (let n = 0; n < MAX_ICON_WIDTH * MAX_ICON_HEIGHT; n++) {
@@ -257,7 +263,12 @@ export class IconMap {
         const sorted: SuperQuadric[] = [];
         for (const pq of this.pixels) {
             if (pq.sq.colorDiffuse.w > 0.001) {
-                pq.sq.world.setTranslation(new Vec3(pq.pos.x, pq.pos.y, pq.pos.z * camOriginDistance));
+                // Bake the object rotation into the instance matrix (the
+                // camera is fixed, the object rotates). Translation is the
+                // rotated local position; the shader transforms normals by
+                // this matrix, so lighting stays correct.
+                const rotated = this.objectRotation.transformVector(new Vec3(pq.pos.x, pq.pos.y, pq.pos.z * camOriginDistance));
+                pq.sq.world.setTranslation(rotated);
                 pq.sq.colorEmissive = new Vec4(
                     pq.sq.colorEmissive.x,
                     pq.sq.colorEmissive.y,
