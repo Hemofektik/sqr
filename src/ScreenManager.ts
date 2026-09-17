@@ -70,6 +70,8 @@ export interface ScreenContext {
     loadAllIcons(category: string): Promise<IconImage[]>;
     /** Display names of all icons of a category, in order. */
     getIconNames(category: string): string[];
+    /** Starts a rotation game, replacing the current screens (LoadingScreen.Load). */
+    startRotationGame(gameMode: "TimeAttack" | "Challenge", categoryIndex: number, categoryName: string): void;
 }
 
 export abstract class GameScreen {

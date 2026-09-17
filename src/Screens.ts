@@ -549,7 +549,9 @@ export class HighscoreScreen extends GameScreen {
                 screen.exitScreen();
             }
             manager.addScreen(new MainMenuScreen(
-                () => manager.addScreen(new RotationGameModeScreen()),
+                () => manager.addScreen(new RotationGameModeScreen(
+                    this.onStartGameCallback(),
+                )),
                 () => manager.addScreen(new MessageBoxScreen(
                     `Are you sure you want to exit ${GAME_NAME}?`,
                 )),
@@ -557,6 +559,12 @@ export class HighscoreScreen extends GameScreen {
         } else {
             this.exitScreen();
         }
+    }
+
+    /** The game-start hook, provided by Game via the ScreenContext so the
+     * in-game highscore exit can rebuild a fully wired main menu. */
+    private onStartGameCallback(): (gameMode: "TimeAttack" | "Challenge", categoryIndex: number, categoryName: string) => void {
+        return this.manager?.context.startRotationGame ?? (() => undefined);
     }
 
     /** Port of HighscoreScreen.AddNewEntry: inserts and ranks the new score. */

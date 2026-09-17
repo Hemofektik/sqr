@@ -115,6 +115,9 @@ export class Game {
             getCategories: () => ICON_CATEGORIES,
             getNumIcons: (category) => this.numIconsFor(category),
             getNumIconsUnlocked: (categoryIndex) => this.userConfig.getNumIconsUnlocked(categoryIndex),
+            startRotationGame: (gameMode, categoryIndex, categoryName) => {
+                this.startRotationGame(gameMode, categoryIndex, categoryName);
+            },
             userConfig: this.userConfig,
             playCue: (cueName) => {
                 void this.audio.playCue(cueName);
