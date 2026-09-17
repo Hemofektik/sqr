@@ -529,14 +529,17 @@ export class RotationGame {
             return;
         }
         // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
-        const invertYAxis = this.host.invertYAxis ? -1 : 1;
+        // The deltas follow the original's camera convention (positive yaw
+        // moves the camera); the object now rotates instead, which mirrors
+        // the on-screen direction, so negate both to restore the feel.
+        const invertYAxis = this.host.invertYAxis ? 1 : -1;
         const rotationSpeed = 5 * dt;
         const tilt = tiltAngle(this.objectOrientation);
         const distanceSQR = tilt * tilt;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
-        const yaw = yawDelta * rotationSpeed * factor;
-        const pitch = pitchDelta * rotationSpeed * factor * invertYAxis;
+        const yaw = -yawDelta * rotationSpeed * factor;
+        const pitch = -pitchDelta * rotationSpeed * factor * invertYAxis;
         this.objectOrientation = Quat.createFromAxisAngle(Vec3.up, yaw)
             .multiply(Quat.createFromAxisAngle(new Vec3(1, 0, 0), pitch))
             .multiply(this.objectOrientation)
