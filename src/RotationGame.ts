@@ -531,8 +531,9 @@ export class RotationGame {
         // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
         // Yaw follows the original's camera convention, which mirrors the
         // on-screen direction now that the object rotates instead of the
-        // camera; pitch was already correct un-negated.
-        const invertYAxis = this.host.invertYAxis ? -1 : 1;
+        // camera; pitch was already correct un-negated. The inverted-Y
+        // option flips the pitch direction.
+        const invertYAxis = this.host.invertYAxis ? 1 : -1;
         const rotationSpeed = 5 * dt;
         const tilt = tiltAngle(this.objectOrientation);
         const distanceSQR = tilt * tilt;
