@@ -419,3 +419,130 @@ export class Mat4 {
         return m;
     }
 }
+
+/**
+ * Quaternion for camera orientation (port of Microsoft.Xna.Framework.Quaternion
+ * semantics used by the original: CreateFromYawPitchRoll products and
+ * Matrix.CreateFromQuaternion).
+ */
+export class Quat {
+    public x: number;
+    public y: number;
+    public z: number;
+    public w: number;
+
+    public constructor(x = 0, y = 0, z = 0, w = 1) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.w = w;
+    }
+
+    public clone(): Quat {
+        return new Quat(this.x, this.y, this.z, this.w);
+    }
+
+    public static identity(): Quat {
+        return new Quat(0, 0, 0, 1);
+    }
+
+    /** Port of Quaternion.CreateFromYawPitchRoll (yaw around Y, pitch around X, roll around Z). */
+    public static createFromYawPitchRoll(yaw: number, pitch: number, roll: number): Quat {
+        const halfRoll = roll * 0.5;
+        const halfPitch = pitch * 0.5;
+        const halfYaw = yaw * 0.5;
+        const sinRoll = Math.sin(halfRoll);
+        const cosRoll = Math.cos(halfRoll);
+        const sinPitch = Math.sin(halfPitch);
+        const cosPitch = Math.cos(halfPitch);
+        const sinYaw = Math.sin(halfYaw);
+        const cosYaw = Math.cos(halfYaw);
+
+        // Matches XNA's combined result.
+        return new Quat(
+            (cosYaw * sinPitch * cosRoll) + (sinYaw * cosPitch * sinRoll),
+            (sinYaw * cosPitch * cosRoll) - (cosYaw * sinPitch * sinRoll),
+            (cosYaw * cosPitch * sinRoll) - (sinYaw * sinPitch * cosRoll),
+            (cosYaw * cosPitch * cosRoll) + (sinYaw * sinPitch * sinRoll),
+        );
+    }
+
+    /** Axis-angle rotation quaternion (right-handed, like XNA's CreateFromAxisAngle). */
+    public static createFromAxisAngle(axis: Vec3, angle: number): Quat {
+        const half = angle * 0.5;
+        const s = Math.sin(half);
+        return new Quat(axis.x * s, axis.y * s, axis.z * s, Math.cos(half));
+    }
+
+    /** Hamilton product (this * other): applies other first, then this. */
+    public multiply(other: Quat): Quat {
+        return new Quat(
+            (this.w * other.x) + (this.x * other.w) + (this.y * other.z) - (this.z * other.y),
+            (this.w * other.y) - (this.x * other.z) + (this.y * other.w) + (this.z * other.x),
+            (this.w * other.z) + (this.x * other.y) - (this.y * other.x) + (this.z * other.w),
+            (this.w * other.w) - (this.x * other.x) - (this.y * other.y) - (this.z * other.z),
+        );
+    }
+
+    public lengthSquared(): number {
+        return this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w;
+    }
+
+    public normalize(): this {
+        const len = Math.sqrt(this.lengthSquared());
+        if (len > 1e-8) {
+            this.x /= len;
+            this.y /= len;
+            this.z /= len;
+            this.w /= len;
+        }
+        return this;
+    }
+
+    /** Rotates a vector by this quaternion. */
+    public rotate(v: Vec3): Vec3 {
+        // v' = q * (v,0) * q^-1, expanded (right-handed).
+        const q = this;
+        const u = new Vec3(q.x, q.y, q.z);
+        const uv = Vec3.cross(u, v);
+        const uuv = Vec3.cross(u, uv);
+        return Vec3.add(Vec3.add(v, Vec3.scale(uv, 2 * q.w)), Vec3.scale(uuv, 2));
+    }
+
+    /** Port of Matrix.CreateFromQuaternion (row-vector convention). */
+    public toMat4(): Mat4 {
+        const x = this.x;
+        const y = this.y;
+        const z = this.z;
+        const w = this.w;
+        const xx = x * x;
+        const yy = y * y;
+        const zz = z * z;
+        const xy = x * y;
+        const zw = z * w;
+        const zx = z * x;
+        const yw = y * w;
+        const yz = y * z;
+        const xw = x * w;
+
+        const m = new Mat4();
+        const e = m.elements;
+        e[0] = 1 - (2 * (yy + zz));
+        e[1] = 2 * (xy + zw);
+        e[2] = 2 * (zx - yw);
+        e[3] = 0;
+        e[4] = 2 * (xy - zw);
+        e[5] = 1 - (2 * (zz + xx));
+        e[6] = 2 * (yz + xw);
+        e[7] = 0;
+        e[8] = 2 * (zx + yw);
+        e[9] = 2 * (yz - xw);
+        e[10] = 1 - (2 * (xx + yy));
+        e[11] = 0;
+        e[12] = 0;
+        e[13] = 0;
+        e[14] = 0;
+        e[15] = 1;
+        return m;
+    }
+}

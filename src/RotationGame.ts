@@ -10,7 +10,7 @@ import { Curve, loadCurve } from "./Curve.ts";
 import { IconMap } from "./IconMap.ts";
 import { Countdown, Praising, ScoreBoard, TimeBoard } from "./Hud.ts";
 import { SQFont } from "./SQFont.ts";
-import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
+import { Mat4, Quat, Vec3, Vec4 } from "./XnaMath.ts";
 
 import { IconUnlockDisplay } from "./IconUnlockDisplay.ts";
 import { NUM_UNLOCKED_ICONS_BY_DEFAULT } from "./UserConfig.ts";
@@ -87,14 +87,50 @@ function isColorGreyish(color: Vec4): boolean {
     return redGreenDelta * redGreenDelta < 0.1 && greenBlueDelta * greenBlueDelta < 0.1;
 }
 
+/** Spherical interpolation between two quaternions (shortest path). */
+function slerp(a: Quat, b: Quat, t: number): Quat {
+    let dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+    // Take the short way around.
+    let end = b;
+    if (dot < 0) {
+        dot = -dot;
+        end = new Quat(-b.x, -b.y, -b.z, -b.w);
+    }
+    if (dot > 0.9995) {
+        return new Quat(
+            a.x + (end.x - a.x) * t,
+            a.y + (end.y - a.y) * t,
+            a.z + (end.z - a.z) * t,
+            a.w + (end.w - a.w) * t,
+        ).normalize();
+    }
+    const theta0 = Math.acos(Math.min(1, Math.max(-1, dot)));
+    const theta = theta0 * t;
+    const sinTheta0 = Math.sin(theta0);
+    const s0 = Math.sin(theta0 - theta) / sinTheta0;
+    const s1 = Math.sin(theta) / sinTheta0;
+    return new Quat(
+        (a.x * s0) + (end.x * s1),
+        (a.y * s0) + (end.y * s1),
+        (a.z * s0) + (end.z * s1),
+        (a.w * s0) + (end.w * s1),
+    );
+}
+
+/** Angle (radians) between the orientation and the front-facing identity. */
+function angleToIdentity(q: Quat): number {
+    // For unit quaternions, |w| = cos(angle/2) of the rotation from identity.
+    const dot = Math.abs(q.w) / Math.max(1e-8, Math.sqrt(q.lengthSquared()));
+    return 2 * Math.acos(Math.min(1, Math.max(-1, dot)));
+}
+
 export class RotationGame {
     private readonly categoryName: string;
     private readonly categoryIndex: number;
     private readonly host: RotationGameHost;
     private readonly gameMode: GameMode;
 
-    private camPitch = 0;
-    private camYaw = 0;
+    private camOrientation = Quat.identity();
     private camRadius = 20;
     private camPosition = new Vec3(0, 0, 20);
     private viewMatrix = Mat4.identity();
@@ -288,13 +324,19 @@ export class RotationGame {
 
         if (this.camFuzzingAnimation.isRunning && dt > 0) {
             this.camFuzzingAnimation.update(totalGameTime);
-            this.camPitch += (this.camFuzzingPitch - this.camPitch) * this.camFuzzingAnimation.progress;
-            this.camYaw += (this.camFuzzingYaw - this.camYaw) * this.camFuzzingAnimation.progress;
+            // Ease the orientation towards the fuzz target (yaw/pitch Euler).
+            const target = Quat.createFromYawPitchRoll(this.camFuzzingYaw, this.camFuzzingPitch, 0);
+            this.camOrientation = slerp(this.camOrientation, target, this.camFuzzingAnimation.progress).normalize();
         }
 
         if (this.gameOver) {
-            this.camPitch += Math.sign(this.camFuzzingPitch) * dt * 0.2;
-            this.camYaw += Math.sign(this.camFuzzingYaw) * dt * 0.2;
+            // Slow drift after the game ended (port of the sign-based creep).
+            const driftYaw = Math.sign(this.camFuzzingYaw) * dt * 0.2;
+            const driftPitch = Math.sign(this.camFuzzingPitch) * dt * 0.2;
+            this.camOrientation = this.camOrientation
+                .multiply(Quat.createFromAxisAngle(Vec3.up, driftYaw))
+                .multiply(Quat.createFromAxisAngle(new Vec3(1, 0, 0), driftPitch))
+                .normalize();
         }
 
         if (this.puzzleSolvedCompleteHenceDisableLogic && !this.isPuzzleCompleteAnimPlaying(totalGameTime)) {
@@ -303,11 +345,12 @@ export class RotationGame {
 
         const allowInput = !this.puzzleSolvedCompleteHenceDisableLogic && !this.gameOver && !this.timeIsStoppedInternally;
         if (allowInput) {
-            const camYawAbs = Math.abs(this.camYaw);
-            const camPitchAbs = Math.abs(this.camPitch);
-            const distanceSQR = camYawAbs * camYawAbs + camPitchAbs * camPitchAbs;
+            // Port of the solve detection: the "distance" is now the angle
+            // between the current orientation and the front-facing identity.
+            const angle = angleToIdentity(this.camOrientation);
+            const distanceSQR = angle * angle;
 
-            if (this.camYaw === 0 && this.camPitch === 0) {
+            if (angle === 0) {
                 this.im.startPuzzleCompleteAnimation(totalGameTime);
                 this.puzzleSolvedCompleteHenceDisableLogic = true;
                 this.puzzleSolvedCompleteTime = totalGameTime;
@@ -326,21 +369,19 @@ export class RotationGame {
                 this.puzzleSolved = true;
             }
 
-            // Puzzle solved: smoothly align the camera to the front.
+            // Puzzle solved: smoothly align the camera back to the front.
             if (this.puzzleSolved) {
                 const smoothAlignSpeed = Math.min(1, 30 * dt);
-                this.camYaw -= this.camYaw * smoothAlignSpeed;
-                this.camPitch -= this.camPitch * smoothAlignSpeed;
-                if (camYawAbs < 0.00005 && camPitchAbs < 0.00005) {
-                    this.camYaw = 0;
-                    this.camPitch = 0;
+                this.camOrientation = slerp(this.camOrientation, Quat.identity(), smoothAlignSpeed).normalize();
+                if (angle < 0.00005) {
+                    this.camOrientation = Quat.identity();
                 }
             }
         }
 
         this.camRadius += ((this.iconImage?.width ?? 16) * 1.25 - this.camRadius) * dt * 10;
 
-        const camRotation = Mat4.createFromYawPitchRoll(this.camYaw, this.camPitch, 0);
+        const camRotation = this.camOrientation.toMat4();
         this.camPosition = Vec3.scale(camRotation.backward(), this.camRadius);
         this.viewMatrix = Mat4.createLookAt(
             this.camPosition,
@@ -429,7 +470,12 @@ export class RotationGame {
             this.puzzleSolvedCompletionDurationAccumulated / Math.max(1, this.statistics.numberOfPuzzlesSolved);
     }
 
-    /** Rotation input (port of the stick handling with deadzone + falloff). */
+    /**
+     * Rotation input (port of the stick handling with deadzone + falloff).
+     * The deltas are applied as rotations around the *current* camera axes
+     * (quaternion accumulation), so the rotation always feels relative to
+     * how the icon is currently oriented.
+     */
     public addRotationInput(yawDelta: number, pitchDelta: number, dt: number): void {
         // Port of the allowInput gate: no rotation while the countdown runs,
         // during the solve animation, or after the game is over.
@@ -439,18 +485,21 @@ export class RotationGame {
         // Port of RotationGame.HandleInput: invertYAxis flips the pitch.
         const invertYAxis = this.host.invertYAxis ? -1 : 1;
         const rotationSpeed = 5 * dt;
-        const camYawAbs = Math.abs(this.camYaw);
-        const camPitchAbs = Math.abs(this.camPitch);
-        const distanceSQR = camYawAbs * camYawAbs + camPitchAbs * camPitchAbs;
+        const angle = angleToIdentity(this.camOrientation);
+        const distanceSQR = angle * angle;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
-        this.camYaw += yawDelta * rotationSpeed * factor;
-        this.camPitch += pitchDelta * rotationSpeed * factor * invertYAxis;
-
-        if (this.camYaw > Math.PI) this.camYaw -= Math.PI * 2;
-        if (this.camYaw < -Math.PI) this.camYaw += Math.PI * 2;
-        if (this.camPitch > Math.PI) this.camPitch -= Math.PI * 2;
-        if (this.camPitch < -Math.PI) this.camPitch += Math.PI * 2;
+        // Yaw around the camera's current up axis, pitch around its right
+        // axis: deltas stay relative to the current orientation. Inverted
+        // once here so both yaw and pitch flip together with the setting.
+        const yaw = yawDelta * rotationSpeed * factor;
+        const pitch = pitchDelta * rotationSpeed * factor * invertYAxis;
+        const rightAxis = this.camOrientation.rotate(new Vec3(1, 0, 0)).normalize();
+        const upAxis = this.camOrientation.rotate(Vec3.up).normalize();
+        this.camOrientation = this.camOrientation
+            .multiply(Quat.createFromAxisAngle(upAxis, yaw))
+            .multiply(Quat.createFromAxisAngle(rightAxis, pitch))
+            .normalize();
     }
 
     // --- rendering accessors -------------------------------------------------
