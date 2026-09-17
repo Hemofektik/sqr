@@ -409,11 +409,17 @@ export class RotationGame {
                 this.objectOrientation = slerp(this.objectOrientation, target, smoothAlignSpeed).normalize();
                 if (parallel < 0.00005) {
                     this.objectOrientation = target;
-                    this.flatten = 1;
                 }
             }
+
+            // Squash the Z spread continuously as the icon plane gets parallel
+            // to the screen (port of the angle-driven camOriginDistance).
+            this.flatten = 1 - Math.min(1, parallel);
+        } else if (this.puzzleSolvedCompleteHenceDisableLogic && this.isPuzzleCompleteAnimPlaying(totalGameTime)) {
+            // Stay flat while the solve celebration animation plays.
+            this.flatten = 1;
         } else {
-            this.flatten = Math.max(0, this.flatten - dt * 2);
+            this.flatten = 0;
         }
 
         this.camRadius += ((this.iconImage?.width ?? 16) * 1.25 - this.camRadius) * dt * 10;
