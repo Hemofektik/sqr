@@ -537,9 +537,9 @@ export class RotationGame {
         const invertYAxis = this.host.invertYAxis ? 1 : -1;
         const rotationSpeed = 5 * dt;
         // The original slowdown curve saturates at full speed beyond ~54deg
-        // tilt. Tripling the angle moves that breakpoint to ~18deg, so the
-        // slowdown only starts very close to a solution.
-        const tilt = tiltAngle(this.objectOrientation) * 3;
+        // tilt. Scaling the angle by 6 moves that breakpoint to ~9deg, so
+        // the slowdown only starts very close to a solution.
+        const tilt = tiltAngle(this.objectOrientation) * 6;
         const distanceSQR = tilt * tilt;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
@@ -553,19 +553,16 @@ export class RotationGame {
 
     /**
      * Roll input: rotation around the viewing axis (world Z). Used by the
-     * two-finger rotate gesture. The delta is already in radians, so it is
-     * applied 1:1 (only damped by the near-solution falloff). Roll does not
-     * affect the solve rule, so this only spins the image on screen.
+     * two-finger rotate gesture. The delta is already in radians and is
+     * applied 1:1 - roll is never damped by the near-solution slowdown.
+     * Roll does not affect the solve rule, so this only spins the image
+     * on screen.
      */
     public addRollInput(rollDelta: number, _dt: number): void {
         if (this.puzzleSolved || this.timeIsStoppedInternally || this.gameOver) {
             return;
         }
-        const tilt = tiltAngle(this.objectOrientation);
-        const distanceSQR = tilt * tilt;
-        const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
-        const roll = rollDelta * factor;
-        this.objectOrientation = Quat.createFromAxisAngle(new Vec3(0, 0, 1), roll)
+        this.objectOrientation = Quat.createFromAxisAngle(new Vec3(0, 0, 1), rollDelta)
             .multiply(this.objectOrientation)
             .normalize();
     }
