@@ -233,58 +233,52 @@ export class Game {
         // yaw+pitch, two fingers rotating around their midpoint control roll.
         if (top instanceof RotationGameScreen) {
             if (clicked) {
-                // Track every active pointer by id (mouse is pointerId 1...,
+                // Track every active pointer by id (mouse is one pointer,
                 // touch has one id per finger).
                 this.dragPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
                 if (this.dragPointers.size === 2) {
-                    // Second finger down: capture the initial angle/center for
-                    // the roll gesture and reset the single-drag anchor.
+                    // Second pointer down: capture the initial angle/center
+                    // for the roll gesture.
                     const [a, b] = this.dragPointers.values();
                     if (a !== undefined && b !== undefined) {
                         this.dragRollAnchor = this.pointerPairState(a, b);
                     }
                 }
             } else {
-                const prev = this.dragPointers.get(event.pointerId);
-                if (prev !== undefined) {
-                    prev.x = event.clientX;
-                    prev.y = event.clientY;
+                const p = this.dragPointers.get(event.pointerId);
+                if (p === undefined) {
+                    return;
                 }
+                // Delta from the previous position of THIS pointer.
+                const dx = event.clientX - p.x;
+                const dy = event.clientY - p.y;
+                p.x = event.clientX;
+                p.y = event.clientY;
 
                 if (this.dragPointers.size === 2) {
-                    // Two-finger gesture: rotation of the finger pair around
-                    // its midpoint controls roll, midpoint motion rotates
-                    // yaw/pitch.
-                    const [a, b] = this.dragPointers.values();
-                    if (a !== undefined && b !== undefined) {
-                        const anchor = this.dragRollAnchor;
-                        if (anchor !== undefined) {
+                    // Two-pointer gesture: rotating the pair around its
+                    // midpoint controls roll, midpoint motion rotates
+                    // yaw/pitch (same as mouse drag, just from two fingers).
+                    const anchor = this.dragRollAnchor;
+                    if (anchor !== undefined) {
+                        const [a, b] = this.dragPointers.values();
+                        if (a !== undefined && b !== undefined) {
                             const current = this.pointerPairState(a, b);
                             // Angle delta (normalized to -pi..pi).
                             let dAngle = current.angle - anchor.angle;
                             while (dAngle > Math.PI) dAngle -= Math.PI * 2;
                             while (dAngle < -Math.PI) dAngle += Math.PI * 2;
                             top.addRollInput(dAngle * 0.05, 0.016);
-                            this.dragRollAnchor = current;
 
                             const dcx = current.cx - anchor.cx;
                             const dcy = current.cy - anchor.cy;
-                            top.addRotationInput(-dcx * 0.01, dcy * 0.01, 0.016);
-                            // Keep yaw/pitch incremental: reset the anchor
-                            // center, keep the angle reference.
-                            this.dragRollAnchor = { ...current };
+                            top.addRotationInput(-dcx * 0.02, dcy * 0.02, 0.016);
+                            this.dragRollAnchor = current;
                         }
                     }
-                } else if (this.dragPointers.size === 1) {
-                    // Single pointer: standard drag rotation.
-                    const p = this.dragPointers.get(event.pointerId);
-                    if (p !== undefined) {
-                        const dx = event.clientX - p.x;
-                        const dy = event.clientY - p.y;
-                        top.addRotationInput(-dx * 0.02, -dy * 0.02, 0.016);
-                        p.x = event.clientX;
-                        p.y = event.clientY;
-                    }
+                } else {
+                    // Single pointer (mouse or one finger): standard drag.
+                    top.addRotationInput(-dx * 0.02, -dy * 0.02, 0.016);
                 }
             }
             return;
