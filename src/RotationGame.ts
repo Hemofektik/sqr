@@ -536,9 +536,10 @@ export class RotationGame {
         // option flips the pitch direction.
         const invertYAxis = this.host.invertYAxis ? 1 : -1;
         const rotationSpeed = 5 * dt;
-        // The slowdown only starts very close to a solution: the tilt angle
-        // is contracted to a third of the real angle for the speed factor.
-        const tilt = tiltAngle(this.objectOrientation) / 3;
+        // The original slowdown curve saturates at full speed beyond ~54deg
+        // tilt. Tripling the angle moves that breakpoint to ~18deg, so the
+        // slowdown only starts very close to a solution.
+        const tilt = tiltAngle(this.objectOrientation) * 3;
         const distanceSQR = tilt * tilt;
         const factor = Math.pow(Math.min(1, distanceSQR + 0.1), 0.8);
 
