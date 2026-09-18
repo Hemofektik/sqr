@@ -277,13 +277,13 @@ export class Game {
 
                             const dcx = current.cx - anchor.cx;
                             const dcy = current.cy - anchor.cy;
-                            top.addRotationInput(-dcx * 0.02, -dcy * 0.02, 0.016);
+                            top.addRotationInput(-dcx * 0.04, -dcy * 0.04, 0.016);
                             this.dragRollAnchor = current;
                         }
                     }
                 } else {
                     // Single pointer (mouse or one finger): standard drag.
-                    top.addRotationInput(-dx * 0.02, -dy * 0.02, 0.016);
+                    top.addRotationInput(-dx * 0.04, -dy * 0.04, 0.016);
                 }
             }
             return;
