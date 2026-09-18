@@ -257,22 +257,24 @@ export class Game {
 
                 if (this.dragPointers.size === 2) {
                     // Two-pointer gesture: rotating the pair around its
-                    // midpoint controls roll, midpoint motion rotates
-                    // yaw/pitch (same as mouse drag, just from two fingers).
+                    // midpoint controls roll (the angle between the two
+                    // touch points), midpoint motion rotates yaw/pitch
+                    // with the same signs as a single-pointer drag.
                     const anchor = this.dragRollAnchor;
                     if (anchor !== undefined) {
                         const [a, b] = this.dragPointers.values();
                         if (a !== undefined && b !== undefined) {
                             const current = this.pointerPairState(a, b);
-                            // Angle delta (normalized to -pi..pi).
+                            // Angle delta (normalized to -pi..pi). The pair
+                            // rotation maps 1:1 to screen roll.
                             let dAngle = current.angle - anchor.angle;
                             while (dAngle > Math.PI) dAngle -= Math.PI * 2;
                             while (dAngle < -Math.PI) dAngle += Math.PI * 2;
-                            top.addRollInput(dAngle * 0.05, 0.016);
+                            top.addRollInput(dAngle, 0.016);
 
                             const dcx = current.cx - anchor.cx;
                             const dcy = current.cy - anchor.cy;
-                            top.addRotationInput(-dcx * 0.02, dcy * 0.02, 0.016);
+                            top.addRotationInput(-dcx * 0.02, -dcy * 0.02, 0.016);
                             this.dragRollAnchor = current;
                         }
                     }
