@@ -161,10 +161,17 @@ export class IconMap {
                 numQuadrics++;
 
                 const zDepth = this.width - 2;
+                // The Z offset is largest at the center of the icon and
+                // tapers towards the outline: scale by the distance from
+                // the pixel to the icon's bounding box edge (1 at the
+                // center, 0 at the border).
+                const nx = (x - this.width / 2) / (this.width / 2);
+                const ny = (y - this.height / 2) / (this.height / 2);
+                const radialFactor = 1 - Math.min(1, Math.max(Math.abs(nx), Math.abs(ny)));
                 const pos = new Vec3(
                     x - this.width / 2,
                     -y + this.height / 2,
-                    this.rnd() * zDepth - zDepth * 0.5,
+                    (this.rnd() * zDepth - zDepth * 0.5) * radialFactor,
                 );
 
                 sq.colorDiffuse = new Vec4(0, 0, 0, a);
