@@ -270,7 +270,10 @@ export class Game {
                             let dAngle = current.angle - anchor.angle;
                             while (dAngle > Math.PI) dAngle -= Math.PI * 2;
                             while (dAngle < -Math.PI) dAngle += Math.PI * 2;
-                            top.addRollInput(dAngle, 0.016);
+                            // Screen Y grows downwards, so a visual clockwise
+                            // finger rotation yields a positive angle - negate
+                            // to match the on-screen roll direction.
+                            top.addRollInput(-dAngle, 0.016);
 
                             const dcx = current.cx - anchor.cx;
                             const dcy = current.cy - anchor.cy;
