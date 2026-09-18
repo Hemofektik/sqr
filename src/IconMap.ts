@@ -269,11 +269,15 @@ export class IconMap {
         for (const pq of this.pixels) {
             if (pq.sq.colorDiffuse.w > 0.001) {
                 // Bake the object rotation into the instance matrix (the
-                // camera is fixed, the object rotates). Translation is the
-                // rotated local position; the shader transforms normals by
-                // this matrix, so lighting stays correct.
-                const rotated = this.objectRotation.transformVector(new Vec3(pq.pos.x, pq.pos.y, pq.pos.z * camOriginDistance));
-                pq.sq.world.setTranslation(rotated);
+                // camera is fixed, the object rotates). The voxel's world
+                // matrix is rotation * translation: the local position with
+                // the flattened Z spread, then rotated. The voxel itself
+                // rotates with the puzzle so its superquadric orientation
+                // always matches the image orientation (crucial while the
+                // solve snap slerps towards the flat pose).
+                const local = new Vec3(pq.pos.x, pq.pos.y, pq.pos.z * camOriginDistance);
+                const rotated = this.objectRotation.transformVector(local);
+                pq.sq.world = Mat4.multiply(this.objectRotation, new Mat4().setTranslation(rotated));
                 pq.sq.colorEmissive = new Vec4(
                     pq.sq.colorEmissive.x,
                     pq.sq.colorEmissive.y,
