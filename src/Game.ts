@@ -308,15 +308,10 @@ export class Game {
         if (this.dragPointers.size < 2) {
             this.dragRollAnchor = undefined;
         }
-        if (this.dragPointers.size === 1) {
-            // Falling back from two fingers to one: re-anchor the remaining
-            // pointer so the drag does not jump.
-            const [p] = this.dragPointers.values();
-            if (p !== undefined) {
-                p.x = event.clientX;
-                p.y = event.clientY;
-            }
-        }
+        // Falling back from two fingers to one: the remaining pointer's
+        // stored position is already its last known position (updated on
+        // every move), so the single-pointer drag continues without a jump.
+        // Deliberately NOT re-anchoring to the released pointer's position.
     }
 
     /** Angle (radians) and center of a two-pointer pair, for the roll gesture. */
