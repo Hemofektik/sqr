@@ -157,9 +157,12 @@ export class RotationGame {
 
     /** Object orientation: what the camera quaternion was, applied to the icon. */
     private objectOrientation = Quat.identity();
-    private objectRotation = Mat4.identity();
     /** How flat the puzzle is rendered: 0 = full Z spread, 1 = flat. */
     private flatten = 0;
+    /** How much the voxels are aligned with the puzzle orientation: 0 during
+     * normal play (voxels stay axis-aligned), easing to 1 during the solve
+     * snap so they end up matching the original image. */
+    private voxelAlign = 0;
     private camRadius = 20;
     private camPosition = new Vec3(0, 0, 20);
     private viewMatrix = Mat4.identity();
@@ -325,6 +328,7 @@ export class RotationGame {
         this.puzzleSolved = false;
         this.puzzleSolvedCompleteHenceDisableLogic = false;
         this.flatten = 0;
+        this.voxelAlign = 0;
 
         this.camFuzzingYaw = this.rnd() * Math.PI * 2 - Math.PI;
         this.camFuzzingPitch = this.rnd() * Math.PI - Math.PI * 0.5;
@@ -385,6 +389,7 @@ export class RotationGame {
                 this.im.startPuzzleCompleteAnimation(totalGameTime);
                 this.puzzleSolvedCompleteHenceDisableLogic = true;
                 this.puzzleSolvedCompleteTime = totalGameTime;
+                this.voxelAlign = 1;
                 const duration = totalGameTime - this.puzzleStartedTime;
                 this.puzzleSolvedCompletionDurationAccumulated += duration;
                 // The original cast to ulong, truncating the mantissa.
@@ -401,13 +406,16 @@ export class RotationGame {
             }
 
             // Puzzle solved: smoothly remove the remaining tilt (the roll is
-            // preserved), ending exactly parallel to the screen.
+            // preserved), ending exactly parallel to the screen. The voxels
+            // align with the puzzle orientation at the same rate.
             if (this.puzzleSolved) {
                 const target = flattenTilt(this.objectOrientation);
                 const smoothAlignSpeed = Math.min(1, 30 * dt);
                 this.objectOrientation = slerp(this.objectOrientation, target, smoothAlignSpeed).normalize();
+                this.voxelAlign = Math.min(1, this.voxelAlign + dt * 15);
                 if (tilt < 0.00005) {
                     this.objectOrientation = target;
+                    this.voxelAlign = 1;
                 }
             }
 
@@ -432,16 +440,13 @@ export class RotationGame {
             new Vec3(0, 0, 0),
             Vec3.up,
         );
-        this.objectRotation = this.objectOrientation.toMat4();
-        this.im.setObjectRotation(this.objectRotation);
+        this.im.setObjectOrientation(this.objectOrientation);
+        this.im.update(totalGameTime, this.camPosition, this.viewMatrix, this.flatten, this.voxelAlign);
 
         if (this.timeIsStoppedInternally || this.isPuzzleCompleteAnimPlaying(totalGameTime)) {
             this.timeBoard.Time += dt;
         }
 
-        // The background is updated by Game with the global clock; the game
-        // only triggers its color animation via the host.
-        this.im.update(totalGameTime, this.camPosition, this.viewMatrix, this.flatten);
         this.praising.update(totalGameTime);
         if (this.countdown.update(dt)) {
             this.puzzleStartedTime = totalGameTime;

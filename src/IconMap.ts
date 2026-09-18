@@ -8,7 +8,7 @@
 import { Animation } from "./Animation.ts";
 import { Curve, loadCurve } from "./Curve.ts";
 import { SuperQuadric } from "./SuperQuadric.ts";
-import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
+import { Mat4, Quat, Vec3, Vec4 } from "./XnaMath.ts";
 
 const MAX_ICON_WIDTH = 48;
 const MAX_ICON_HEIGHT = 48;
@@ -92,10 +92,22 @@ export class IconMap {
     private lastMainColor = new Vec4(0, 0, 0, 0);
     private sortedSQS: SuperQuadric[] = [];
     private objectRotation = Mat4.identity();
+    /** Puzzle orientation; voxels align with it as voxelAlign rises. */
+    private objectOrientation = Quat.identity();
+    /** 0 = voxels axis-aligned (normal play), 1 = voxels aligned to the
+     * puzzle orientation (solve snap / completion). */
+    private voxelAlign = 0;
 
-    /** Sets the object rotation baked into every instance (fixed-camera mode). */
-    public setObjectRotation(rotation: Mat4): void {
-        this.objectRotation = rotation;
+    /** Sets the object orientation. Positions are always rotated by it; the
+     * voxels' own alignment with it is driven by setVoxelAlign. */
+    public setObjectOrientation(orientation: Quat): void {
+        this.objectOrientation = orientation;
+        this.objectRotation = orientation.toMat4();
+    }
+
+    /** 0 = voxels axis-aligned (normal play), 1 = aligned with the puzzle. */
+    public setVoxelAlign(align: number): void {
+        this.voxelAlign = align;
     }
 
     public constructor() {
@@ -244,7 +256,8 @@ export class IconMap {
     }
 
     /** Port of IconMap.Update. */
-    public update(totalGameTime: number, cameraPos: Vec3, _viewMatrix: Mat4, flatten: number): void {
+    public update(totalGameTime: number, cameraPos: Vec3, _viewMatrix: Mat4, flatten: number, voxelAlign: number): void {
+        this.setVoxelAlign(voxelAlign);
         let shininess = 0;
         if (this.puzzleCompleteAnimation.isRunning) {
             this.puzzleCompleteAnimation.update(totalGameTime);
@@ -268,16 +281,34 @@ export class IconMap {
         const sorted: SuperQuadric[] = [];
         for (const pq of this.pixels) {
             if (pq.sq.colorDiffuse.w > 0.001) {
-                // Bake the object rotation into the instance matrix (the
-                // camera is fixed, the object rotates). The voxel's world
-                // matrix is rotation * translation: the local position with
-                // the flattened Z spread, then rotated. The voxel itself
-                // rotates with the puzzle so its superquadric orientation
-                // always matches the image orientation (crucial while the
-                // solve snap slerps towards the flat pose).
+                // The voxel position always follows the puzzle orientation.
+                // The voxel's own orientation blends between axis-aligned
+                // (normal play - doesn't give away the puzzle pose) and the
+                // puzzle orientation (during the solve snap, so the voxels
+                // end up oriented exactly like the original image).
                 const local = new Vec3(pq.pos.x, pq.pos.y, pq.pos.z * camOriginDistance);
                 const rotated = this.objectRotation.transformVector(local);
-                pq.sq.world = Mat4.multiply(this.objectRotation, new Mat4().setTranslation(rotated));
+                let voxelRotation = this.objectRotation;
+                if (this.voxelAlign < 1) {
+                    // Slerp identity -> puzzle orientation, normalized by
+                    // dividing the quaternion by its length after scaling
+                    // (cheap nlerp is fine for per-frame blending).
+                    const t = Math.min(1, Math.max(0, this.voxelAlign));
+                    const q = this.objectOrientation;
+                    const w = 1 - t;
+                    // Handle the shortest-arc sign so the blend takes the
+                    // short way around.
+                    const dot = q.w; // identity has w = 1
+                    const s = dot < 0 ? -t : t;
+                    const blend = new Quat(
+                        q.x * s,
+                        q.y * s,
+                        q.z * s,
+                        w + q.w * s,
+                    ).normalize();
+                    voxelRotation = blend.toMat4();
+                }
+                pq.sq.world = Mat4.multiply(voxelRotation, new Mat4().setTranslation(rotated));
                 pq.sq.colorEmissive = new Vec4(
                     pq.sq.colorEmissive.x,
                     pq.sq.colorEmissive.y,
