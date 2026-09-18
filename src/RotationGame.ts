@@ -183,8 +183,9 @@ export class RotationGame {
     private readonly iconImageCache = new Map<number, IconImage>();
 
     private readonly camFuzzingAnimation = new Animation(1);
-    private camFuzzingPitch = 0;
-    private camFuzzingYaw = 0;
+    /** Random screen-space tilt axis (mix of yaw and pitch) for the fuzz. */
+    private camFuzzingAxis = new Vec3(0, 1, 0);
+    private camFuzzingAngle = 0;
 
     private puzzleSolved = false;
     private puzzleSolvedCompleteHenceDisableLogic = false;
@@ -330,12 +331,14 @@ export class RotationGame {
         this.flatten = 0;
         this.voxelAlign = 0;
 
-        this.camFuzzingYaw = this.rnd() * Math.PI * 2 - Math.PI;
-        this.camFuzzingPitch = this.rnd() * Math.PI - Math.PI * 0.5;
-
-        // Minimum distance to origin should be safe.
-        this.camFuzzingYaw += Math.sign(this.camFuzzingYaw) * 0.5;
-        this.camFuzzingPitch += Math.sign(this.camFuzzingPitch) * 0.8;
+        // Random tilt around a random axis in the screen plane: the axis is
+        // a uniform direction in XY, so the puzzle starts rotated by a
+        // random mix of yaw and pitch in every direction (the old yaw+pitch
+        // Euler pair with a large pitch bias looked almost purely pitched).
+        // The minimum angle keeps the puzzle from starting (nearly) solved.
+        const azimuth = this.rnd() * Math.PI * 2 - Math.PI;
+        this.camFuzzingAxis = new Vec3(Math.cos(azimuth), Math.sin(azimuth), 0);
+        this.camFuzzingAngle = 0.6 + this.rnd() * 1.0; // ~34deg..91deg
 
         this.camFuzzingAnimation.start(totalGameTime);
         void this.loadNewIcon(totalGameTime);
@@ -359,17 +362,15 @@ export class RotationGame {
 
         if (this.camFuzzingAnimation.isRunning && dt > 0) {
             this.camFuzzingAnimation.update(totalGameTime);
-            // Ease the object orientation towards the fuzz target (yaw/pitch Euler).
-            const target = Quat.createFromYawPitchRoll(this.camFuzzingYaw, this.camFuzzingPitch, 0);
+            // Ease the object orientation towards the random tilt target.
+            const target = Quat.createFromAxisAngle(this.camFuzzingAxis, this.camFuzzingAngle);
             this.objectOrientation = slerp(this.objectOrientation, target, this.camFuzzingAnimation.progress).normalize();
         }
 
         if (this.gameOver) {
             // Slow drift after the game ended (port of the sign-based creep).
-            const driftYaw = Math.sign(this.camFuzzingYaw) * dt * 0.2;
-            const driftPitch = Math.sign(this.camFuzzingPitch) * dt * 0.2;
-            this.objectOrientation = Quat.createFromAxisAngle(Vec3.up, driftYaw)
-                .multiply(Quat.createFromAxisAngle(new Vec3(1, 0, 0), driftPitch))
+            const drift = Math.sign(this.camFuzzingAngle) * dt * 0.2;
+            this.objectOrientation = Quat.createFromAxisAngle(this.camFuzzingAxis, drift)
                 .multiply(this.objectOrientation)
                 .normalize();
         }
