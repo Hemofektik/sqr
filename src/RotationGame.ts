@@ -215,7 +215,8 @@ export class RotationGame {
         this.scoreBoard = new ScoreBoard(host.font);
         this.timeBoard = new TimeBoard(host.font);
         this.praising = new Praising(host.font);
-        this.countdown = new Countdown(host.font, 3.5);
+        // Free play starts immediately - no countdown before the first riddle.
+        this.countdown = new Countdown(host.font, gameMode === "FreePlay" ? 0 : 3.5);
         this.iconUnlockDisplay = new IconUnlockDisplay(host.font, host);
 
         // Port of the RotationGame constructor playlist.
