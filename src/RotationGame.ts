@@ -263,12 +263,15 @@ export class RotationGame {
         return this.countdown.TimeLeft > 0 || this.camFuzzingAnimation.isRunning;
     }
 
-    /** Port of CreateRandomIconList: Challenge caps the list at 30 icons. */
+    /** Port of CreateRandomIconList: Challenge caps the list at 30 icons,
+     * and only unlocked icons may appear as puzzles. */
     private createRandomIconList(): void {
         let numRandomIcons = this.numIcons;
         if (this.gameMode === "Challenge") {
             numRandomIcons = Math.min(numRandomIcons, 30);
         }
+        // Port: never pick locked icons (unlocked count is persisted).
+        numRandomIcons = Math.min(numRandomIcons, this.host.getNumIconsUnlocked(this.categoryIndex));
         const copy: number[] = [];
         for (let n = 0; n < numRandomIcons; n++) {
             copy.push(n);
