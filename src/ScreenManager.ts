@@ -62,6 +62,8 @@ export interface ScreenContext {
     drawUnlockIcon(image: IconImage, alpha: number): void;
     /** Clears and draws the gallery grid overlay. */
     clearGallery(): void;
+    /** Draws a HUD hint texture (dpad/trigger) at backbuffer coordinates. */
+    drawHudTexture(name: string, x: number, y: number, alpha: number): void;
     /** Draws one gallery grid icon at backbuffer scale (aspect preserved). */
     drawGalleryIcon(image: IconImage, x: number, y: number, height: number, alpha: number): void;
     /** Draws the locked-image placeholder at the same position. */

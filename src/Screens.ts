@@ -689,6 +689,28 @@ export class HighscoreScreen extends GameScreen {
             const categories = this.manager?.context.getCategories() ?? [];
             const category = categories[this.categoryIndex] ?? "";
             const zDepth = 60;
+
+            // Port: the cycling dpad hint (only on the toggable menu board).
+            // Two frames crossfade with a gamma-corrected lerp, cycling
+            // left -> up -> right -> down at 2 steps per second.
+            if (this.isToggable && fadeValue > 0.001) {
+                const dpadNames = ["dpad_left", "dpad_up", "dpad_right", "dpad_down"];
+                const time = ctx.gameTime * 2;
+                const timeIndex = Math.floor(time);
+                let lerp = time - timeIndex;
+                const invLerp = Math.pow(1 - lerp, 1 / 2.2);
+                lerp = Math.pow(lerp, 1 / 2.2);
+                const texIndex = ((timeIndex % dpadNames.length) + dpadNames.length) % dpadNames.length;
+                const currentName = dpadNames[texIndex];
+                const nextName = dpadNames[(texIndex + 1) % dpadNames.length];
+                if (currentName !== undefined) {
+                    ctx.drawHudTexture(currentName, 1600, 770, invLerp * fadeValue);
+                }
+                if (nextName !== undefined) {
+                    ctx.drawHudTexture(nextName, 1600, 770, lerp * fadeValue);
+                }
+            }
+
             font.addText(GAME_MODE_NAMES[this.gameMode] ?? "", new Vec3(-0.35, -1.2, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
             font.addText(category, new Vec3(-0.35, -1.3, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
             setupFontCamera(font, new Vec3(0, 0, 1));
@@ -816,9 +838,15 @@ export class GalleryScreen extends GameScreen {
             font.flush(true);
         }
 
-        // Grid of icons (drawn on the 2D overlay in backbuffer coordinates).
-        ctx.clearGallery();
+        // Grid of icons (drawn on the 2D overlay in backbuffer coordinates;
+        // the overlay itself is cleared once per frame by the Game).
         const alpha = 1 - this.transitionPosition;
+
+        // Port: the category-switch button hints (trigger_left/right).
+        if (alpha > 0.001) {
+            ctx.drawHudTexture("trigger_left", 1615, 770, alpha);
+            ctx.drawHudTexture("trigger_right", 1685, 770, alpha);
+        }
 
         // While the icons load, animate a superquadric ring as a loading
         // indicator.

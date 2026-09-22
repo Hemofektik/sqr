@@ -165,6 +165,9 @@ export class Game {
             clearGallery: () => {
                 this.clearGallery();
             },
+            drawHudTexture: (name, x, y, alpha) => {
+                this.drawHudTexture(name, x, y, alpha);
+            },
             loadAllIcons: async (category: string) => {
                 const entries = await this.loadIconList(category);
                 const images: IconImage[] = [];
@@ -503,6 +506,33 @@ export class Game {
 
     private clearGallery(): void {
         this.galleryCtx?.clearRect(0, 0, this.previewBackbufferWidth, this.previewBackbufferHeight);
+    }
+
+    private readonly hudTextureCache = new Map<string, HTMLImageElement>();
+
+    /**
+     * Draws a HUD hint texture (dpad/trigger input hints) at backbuffer
+     * coordinates onto the 2D overlay. Textures load on demand and simply
+     * start drawing from the next frame once loaded.
+     */
+    private drawHudTexture(name: string, x: number, y: number, alpha: number): void {
+        const ctx = this.galleryCtx;
+        if (ctx === undefined || alpha <= 0.001) {
+            return;
+        }
+        let image = this.hudTextureCache.get(name);
+        if (image === undefined) {
+            image = new Image();
+            image.src = `/textures/${name}.png`;
+            this.hudTextureCache.set(name, image);
+        }
+        if (!image.complete || image.naturalWidth === 0) {
+            return; // Not loaded yet - draws from the next frame on.
+        }
+        ctx.globalAlpha = alpha;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(image, x, y);
+        ctx.globalAlpha = 1;
     }
 
     /** Gallery grid icon: height in backbuffer pixels, aspect preserved. */
@@ -941,6 +971,10 @@ export class Game {
             gl.depthRange(0.5, 0.9);
             this.renderer.render(this.background.menuScene, this.background.menuCamera);
         }
+        // The 2D overlay (gallery grid + HUD hint textures) is cleared once
+        // per frame before the screens draw into it.
+        this.clearGallery();
+
         // Screen text draws into the foreground depth band (XNA: MinDepth 0,
         // MaxDepth 0.4), so it always wins the depth test against the swarm.
         gl.depthRange(0, 0.4);
@@ -951,11 +985,6 @@ export class Game {
         if (!gameActive) {
             this.clearIconPreview();
             this.unlockCtx?.clearRect(0, 0, this.previewSize, this.previewSize);
-        }
-
-        // The gallery overlay is only drawn while the gallery is on screen.
-        if (!this.screenManager.managesScreen("gallery")) {
-            this.clearGallery();
         }
     }
 }
