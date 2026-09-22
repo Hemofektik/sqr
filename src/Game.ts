@@ -292,6 +292,21 @@ export class Game {
             return;
         }
 
+        // Touch navigation: track pointer-downs on the highscore and gallery
+        // so handlePointerUp can classify tap vs swipe (arrows/PageUp keys
+        // have no touch equivalent on these screens).
+        if (top instanceof HighscoreScreen || top instanceof GalleryScreen) {
+            if (clicked) {
+                this.swipeStart = {
+                    id: event.pointerId,
+                    x: event.clientX,
+                    y: event.clientY,
+                    time: performance.now(),
+                };
+            }
+            return;
+        }
+
         // Only the topmost non-popup menu receives pointer input.
         if (!(top instanceof MenuScreen) || top.isPopup) {
             return;
@@ -307,6 +322,45 @@ export class Game {
     }
 
     private handlePointerUp(event: PointerEvent): void {
+        // Tap vs swipe classification for the highscore/gallery screens.
+        const swipe = this.swipeStart;
+        if (swipe !== undefined && swipe.id === event.pointerId) {
+            this.swipeStart = undefined;
+            // pointercancel (e.g. the browser took over) never counts.
+            if (event.type === "pointerup") {
+                const dx = event.clientX - swipe.x;
+                const dy = event.clientY - swipe.y;
+                const elapsed = performance.now() - swipe.time;
+                const moved = Math.max(Math.abs(dx), Math.abs(dy));
+                const isSwipe = elapsed <= 800 && moved >= 40;
+                const top = this.topScreen();
+                // Ignore input while the screen is still sliding in or out.
+                if (top !== undefined && top.transitionPosition <= 0.5) {
+                    if (top instanceof HighscoreScreen) {
+                        if (!isSwipe) {
+                            // Tap = back (port of MenuSelect/MenuCancel).
+                            top.handleExit();
+                        } else if (Math.abs(dx) > Math.abs(dy)) {
+                            // Finger direction maps to the arrow keys: left
+                            // = previous category, right = next.
+                            top.handleToggle(dx < 0 ? "left" : "right");
+                        } else {
+                            // Swipe up = next mode, down = previous.
+                            top.handleToggle(dy < 0 ? "up" : "down");
+                        }
+                    } else if (top instanceof GalleryScreen) {
+                        if (!isSwipe) {
+                            this.screenManager.popScreen();
+                        } else if (Math.abs(dx) > Math.abs(dy)) {
+                            // Horizontal swipe switches the category (the
+                            // touch equivalent of the trigger arrows).
+                            top.handleCategory(dx < 0 ? -1 : 1);
+                        }
+                    }
+                }
+            }
+        }
+
         this.dragPointers.delete(event.pointerId);
         if (this.dragPointers.size < 2) {
             this.dragRollAnchor = undefined;
@@ -329,6 +383,8 @@ export class Game {
     /** Active drag pointers by pointerId (mouse or touch). */
     private readonly dragPointers = new Map<number, { x: number; y: number }>();
     private dragRollAnchor: { angle: number; cx: number; cy: number } | undefined;
+    /** Swipe tracking start for the highscore/gallery touch navigation. */
+    private swipeStart: { id: number; x: number; y: number; time: number } | undefined;
 
     public showToast(message: string): void {
         const toast = document.getElementById("toast");
