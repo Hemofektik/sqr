@@ -653,6 +653,14 @@ export class Game {
                 return image;
             },
             getIconName: (category: string, index: number) => {
+                // Resolve from the manifest list (synchronously available
+                // once the list was fetched; the game fetches it on start).
+                const names = this.iconNamesCache.get(category);
+                const name = names?.[index];
+                if (name !== undefined) {
+                    return name;
+                }
+                // List not fetched yet: fall back to the per-icon cache.
                 return this.iconNameCache.get(`${category}:${index}`) ?? "?";
             },
             getNumIconsUnlocked: (categoryIndex: number) => this.userConfig.getNumIconsUnlocked(categoryIndex),

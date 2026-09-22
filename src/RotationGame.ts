@@ -507,7 +507,11 @@ export class RotationGame {
             // riddle was just pointed at it above); the original passed the
             // icon object itself, not the currently displayed one.
             const name = this.host.getIconName(this.categoryName, numIconsUnlocked);
-            this.iconUnlockDisplay.unlockIcon(totalGameTime, name, this.iconImage);
+            // Load the actual unlocked icon image for the display (the
+            // currently displayed icon is a different one).
+            void this.host.loadIcon(this.categoryName, numIconsUnlocked).then((image) => {
+                this.iconUnlockDisplay.unlockIcon(totalGameTime, name, image);
+            });
             this.statistics.numberOfIconsUnlocked++;
         }
     }
