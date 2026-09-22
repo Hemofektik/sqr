@@ -844,13 +844,15 @@ export class GalleryScreen extends GameScreen {
 
         if (alpha > 0.001) {
             // Smooth scroll: keep the selected row visible, scrolling only
-            // when it leaves the window (the grid shows 7 rows). The grid is
-            // column-major (x = n / 7, y = n % 7), so scrolling by a row means
-            // offsetting the row index inside each column - skipping items
-            // contiguously would hide whole columns.
+            // when the grid does not fit on screen at all (the original
+            // asserts numIcons <= the 17x7 window, so normally there is
+            // nothing to scroll - a short last column must not enable it).
+            const capacity = GalleryScreen.NUM_FILES_ON_SCREEN_X * GalleryScreen.NUM_FILES_ON_SCREEN_Y;
             const targetRowIndex = this.selectedImageIndex % GalleryScreen.NUM_FILES_ON_SCREEN_Y;
             const numColumns = Math.ceil(numIcons / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
-            const maxFirstRow = Math.max(0, GalleryScreen.NUM_FILES_ON_SCREEN_Y - Math.min(GalleryScreen.NUM_FILES_ON_SCREEN_Y, numIcons - (numColumns - 1) * GalleryScreen.NUM_FILES_ON_SCREEN_Y));
+            const maxFirstRow = numIcons > capacity
+                ? Math.max(0, GalleryScreen.NUM_FILES_ON_SCREEN_Y - Math.min(GalleryScreen.NUM_FILES_ON_SCREEN_Y, numIcons - (numColumns - 1) * GalleryScreen.NUM_FILES_ON_SCREEN_Y))
+                : 0;
             const targetFirstRow = Math.max(0, Math.min(maxFirstRow, targetRowIndex));
             this.floatingRowIndex += (targetFirstRow - this.floatingRowIndex) * Math.min(1, ctx.dt * 5);
             this.firstRowIndex = Math.round(this.floatingRowIndex);
