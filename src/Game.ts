@@ -509,11 +509,21 @@ export class Game {
     }
 
     private readonly hudTextureCache = new Map<string, HTMLImageElement>();
+    private readonly hudTextureRetryAt = new Map<string, number>();
+
+    private loadHudTexture(name: string, cacheBust: number): HTMLImageElement {
+        this.hudTextureRetryAt.set(name, performance.now());
+        const image = new Image();
+        // Cache-bust retries so a stale cached 404 (from before the textures
+        // were served) cannot poison the cache forever.
+        image.src = cacheBust > 0 ? `/textures/${name}.png?r=${cacheBust}` : `/textures/${name}.png`;
+        return image;
+    }
 
     /**
      * Draws a HUD hint texture (dpad/trigger input hints) at backbuffer
-     * coordinates onto the 2D overlay. Textures load on demand and simply
-     * start drawing from the next frame once loaded.
+     * coordinates onto the 2D overlay. Textures load on demand; failed
+     * loads retry at most every 2 seconds.
      */
     private drawHudTexture(name: string, x: number, y: number, alpha: number): void {
         const ctx = this.galleryCtx;
@@ -522,9 +532,15 @@ export class Game {
         }
         let image = this.hudTextureCache.get(name);
         if (image === undefined) {
-            image = new Image();
-            image.src = `/textures/${name}.png`;
+            image = this.loadHudTexture(name, 0);
             this.hudTextureCache.set(name, image);
+        } else if (image.complete && image.naturalWidth === 0) {
+            // Broken (e.g. a cached 404): retry with a cache-busted URL.
+            const lastTry = this.hudTextureRetryAt.get(name) ?? 0;
+            if (performance.now() - lastTry > 2000) {
+                image = this.loadHudTexture(name, Math.round(performance.now()));
+                this.hudTextureCache.set(name, image);
+            }
         }
         if (!image.complete || image.naturalWidth === 0) {
             return; // Not loaded yet - draws from the next frame on.

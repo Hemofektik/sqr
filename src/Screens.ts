@@ -30,9 +30,12 @@ const GAME_MODE_NAMES: Record<number, string> = {
     2: "FreePlay",
 };
 
-/** Shared ortho camera setup used by all screens' text. */
-function setupFontCamera(font: SQFontLike, viewPosition: Vec3): void {
-    const viewMatrix = Mat4.createLookAt(viewPosition, new Vec3(0, 0, 0), Vec3.up);
+/** Shared ortho camera setup used by all screens' text. The mode/category
+ * label blocks pass up = (1,0,0) exactly like the original - their position
+ * (y = -1.2 * 60 = -72) falls outside the ortho box with a normal camera
+ * (|y| <= 56.25) and would be clipped away. */
+function setupFontCamera(font: SQFontLike, viewPosition: Vec3, up: Vec3 = Vec3.up): void {
+    const viewMatrix = Mat4.createLookAt(viewPosition, new Vec3(0, 0, 0), up);
     const projMatrix = Mat4.createOrthographicOffCenter(-100, 100, -56.25, 56.25, 1, 550);
     font.applyCamera(viewPosition, viewMatrix, projMatrix);
 }
@@ -713,7 +716,8 @@ export class HighscoreScreen extends GameScreen {
 
             font.addText(GAME_MODE_NAMES[this.gameMode] ?? "", new Vec3(-0.35, -1.2, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
             font.addText(category, new Vec3(-0.35, -1.3, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
-            setupFontCamera(font, new Vec3(0, 0, 1));
+            // Port: original passes up = (1,0,0) for this block.
+            setupFontCamera(font, new Vec3(0, 0, 1), new Vec3(1, 0, 0));
             font.flush(fadeValue < 1);
         }
     }
@@ -1208,7 +1212,8 @@ export class RotationGameStatisticsScreen extends GameScreen {
             const zDepth = 60;
             font.addText(this.gameModeName, new Vec3(-0.35, -1.2, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
             font.addText(category, new Vec3(-0.35, -1.3, -1).multiplyScalar(zDepth), 0.9, fontColor, emissive);
-            setupFontCamera(font, new Vec3(0, 0, 1));
+            // Port: original passes up = (1,0,0) for this block.
+            setupFontCamera(font, new Vec3(0, 0, 1), new Vec3(1, 0, 0));
             font.flush(fadeValue < 1);
         }
     }
