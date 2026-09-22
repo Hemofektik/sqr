@@ -503,7 +503,10 @@ export class RotationGame {
             }
             // Persist the unlock (userConfig.SetNumIconsUnlocked).
             this.host.unlockIcon(this.categoryIndex);
-            const name = this.host.getIconName(this.categoryName, this.currentIconIndex);
+            // The unlocked icon is the one at numIconsUnlocked (the next
+            // riddle was just pointed at it above); the original passed the
+            // icon object itself, not the currently displayed one.
+            const name = this.host.getIconName(this.categoryName, numIconsUnlocked);
             this.iconUnlockDisplay.unlockIcon(totalGameTime, name, this.iconImage);
             this.statistics.numberOfIconsUnlocked++;
         }
