@@ -10,6 +10,7 @@ import { MenuScreen } from "./MenuScreen.ts";
 import type { MenuEntryDef } from "./MenuScreen.ts";
 import { SuperQuadric } from "./SuperQuadric.ts";
 import { LoadingSpinner } from "./LoadingSpinner.ts";
+import { HighscoreStore } from "./HighscoreStore.ts";
 import type { IconImage } from "./RotationGame.ts";
 import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
 
@@ -511,25 +512,15 @@ export class HighscoreScreen extends GameScreen {
 
     private static readonly NUM_GAME_MODES = 2; // excludes FreePlay
 
-    private static readonly ENTRIES = [
-        { place: 1, score: 1000000, gamerTag: "Rotkaeppchen" },
-        { place: 2, score: 800000, gamerTag: "Rike" },
-        { place: 3, score: 500000, gamerTag: "Kuchen" },
-        { place: 4, score: 300000, gamerTag: "Dude" },
-        { place: 5, score: 150000, gamerTag: "pal" },
-        { place: 6, score: 80000, gamerTag: "Cookie" },
-        { place: 7, score: 40000, gamerTag: "superquadric" },
-        { place: 8, score: 20000, gamerTag: "guy" },
-        { place: 9, score: 10000, gamerTag: "cube" },
-        { place: 10, score: 5000, gamerTag: "polygon" },
-    ];
-
-    public constructor(isInGame = false) {
+    public constructor(isInGame = false, gameMode: GameModeValue = GameMode.TimeAttack, categoryIndex = 0) {
         super();
         this.transitionOnTime = 0.5;
         this.transitionOffTime = 0.5;
         this.isInGame = isInGame;
-        this.entries = HighscoreScreen.ENTRIES.map((entry) => ({ ...entry }));
+        this.gameMode = gameMode;
+        this.categoryIndex = categoryIndex;
+        // Port of HighscoreData: entries are persisted per mode/category.
+        this.entries = HighscoreStore.load(gameMode, categoryIndex);
     }
 
     private isInGame: boolean;
@@ -565,15 +556,12 @@ export class HighscoreScreen extends GameScreen {
         return this.manager?.context.startRotationGame ?? (() => undefined);
     }
 
-    /** Port of HighscoreScreen.AddNewEntry: inserts and ranks the new score. */
+    /** Port of HighscoreScreen.AddNewEntry: inserts, ranks and persists the
+     * new score (port of HighscoreData.AddNewEntry). */
     public addNewEntry(score: number, gamerTag: string): void {
-        this.entries.push({ place: -1, score, gamerTag });
-        this.entries.sort((a, b) => b.score - a.score);
-        this.entries = this.entries.slice(0, 10);
-        this.entries.forEach((entry, index) => {
-            entry.place = index + 1;
-        });
-        this.lastEntryIndex = this.entries.findIndex((entry) => entry.score === score && entry.gamerTag === gamerTag);
+        const result = HighscoreStore.add(this.gameMode, this.categoryIndex, score, gamerTag);
+        this.entries = result.entries;
+        this.lastEntryIndex = result.newIndex;
     }
 
     public override update(dt: number, gameTime: number, otherScreenHasFocus: boolean, coveredByOtherScreen: boolean): void {
@@ -601,6 +589,10 @@ export class HighscoreScreen extends GameScreen {
         } else if (action === "down") {
             this.gameMode = ((this.gameMode + 1) % HighscoreScreen.NUM_GAME_MODES) as GameModeValue;
         }
+        // Port of HighscoreScreen.HandleInput: switching mode/category
+        // reloads that combination's persisted entry list.
+        this.entries = HighscoreStore.load(this.gameMode, this.categoryIndex);
+        this.lastEntryIndex = -1;
     }
 
     public override draw(ctx: ScreenContext): void {

@@ -10,7 +10,7 @@ import { RotationGame } from "./RotationGame.ts";
 import type { RotationGameHost } from "./RotationGame.ts";
 import { SuperQuadricBatch, applyXnaCamera } from "./SuperQuadric.ts";
 import { SuperQuadric } from "./SuperQuadric.ts";
-import { RotationGameStatisticsScreen, HighscoreScreen } from "./Screens.ts";
+import { RotationGameStatisticsScreen, HighscoreScreen, GameMode } from "./Screens.ts";
 import { Mat4, Vec3, Vec4 } from "./XnaMath.ts";
 
 export class RotationGameScreen extends GameScreen {
@@ -93,7 +93,10 @@ export class RotationGameScreen extends GameScreen {
                 }
             }
             this.exitScreen();
-            const highscore = new HighscoreScreen(true);
+            // Persist under the mode/category that was just played (FreePlay
+            // never reaches this path - it has no game over).
+            const mode = game.getGameMode() === "Challenge" ? GameMode.Challenge : GameMode.TimeAttack;
+            const highscore = new HighscoreScreen(true, mode, this.categoryIndex);
             highscore.addNewEntry(game.getScore(), "Anonymous");
             this.manager.addScreen(highscore);
         }
