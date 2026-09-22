@@ -517,6 +517,10 @@ export class HighscoreScreen extends GameScreen {
         this.transitionOnTime = 0.5;
         this.transitionOffTime = 0.5;
         this.isInGame = isInGame;
+        // Port of the two constructors: the menu version is toggable (browse
+        // all mode/category boards), the in-game version is fixed to the
+        // combination that was just played.
+        this.isToggable = !isInGame;
         this.gameMode = gameMode;
         this.categoryIndex = categoryIndex;
         // Port of HighscoreData: entries are persisted per mode/category.
@@ -585,9 +589,10 @@ export class HighscoreScreen extends GameScreen {
         } else if (action === "right") {
             this.categoryIndex = (this.categoryIndex + 1) % numCategories;
         } else if (action === "up") {
-            this.gameMode = ((this.gameMode + HighscoreScreen.NUM_GAME_MODES - 1) % HighscoreScreen.NUM_GAME_MODES) as GameModeValue;
-        } else if (action === "down") {
+            // Port: deltaY = (MenuUp ? 1 : 0) + (MenuDown ? -1 : 0).
             this.gameMode = ((this.gameMode + 1) % HighscoreScreen.NUM_GAME_MODES) as GameModeValue;
+        } else if (action === "down") {
+            this.gameMode = ((this.gameMode + HighscoreScreen.NUM_GAME_MODES - 1) % HighscoreScreen.NUM_GAME_MODES) as GameModeValue;
         }
         // Port of HighscoreScreen.HandleInput: switching mode/category
         // reloads that combination's persisted entry list.
