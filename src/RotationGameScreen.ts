@@ -38,6 +38,8 @@ export class RotationGameScreen extends GameScreen {
     private totalGameTime = 0;
     private statisticsWhereShown = false;
     private highscoreWhereShown = false;
+    /** Eased stack spacing (see the Challenge draw block). */
+    private stackStep: number | undefined;
     private readonly gameModeName: string;
     private readonly categoryIndex: number;
     private readonly categoryName: string;
@@ -156,7 +158,16 @@ export class RotationGameScreen extends GameScreen {
                 // on the 2D overlay, above the WebGL text, so compress the
                 // step instead: the pile never reaches the Next Unlock text
                 // at y=815 - all icons stay visible above it.
-                const step = Math.min(70, (815 - 64 - (115 + 128 + 128)) / Math.max(1, remaining - 1));
+                const targetStep = Math.min(70, (815 - 64 - (115 + 128 + 128)) / Math.max(1, remaining - 1));
+                if (this.stackStep === undefined) {
+                    this.stackStep = targetStep;
+                }
+                // Ease toward the target: remaining shrinks by one at each
+                // solve, and snapping the step would resize every gap in the
+                // pile in a single frame - right as the transition animation
+                // starts. Eased, the pile just relaxes gently instead.
+                this.stackStep += (targetStep - this.stackStep) * Math.min(1, ctx.dt * 5);
+                const step = this.stackStep;
                 // Draw back-to-front: the deepest icons first, the next icon
                 // (and the animating one) last, so the next icon sits ON TOP
                 // of the pile instead of being buried under later entries.
