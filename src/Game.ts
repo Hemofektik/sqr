@@ -635,7 +635,10 @@ export class Game {
 
     /** Draws a Challenge stack icon in backbuffer coordinates. */
     private drawStackIcon(image: IconImage, x: number, y: number, size: number, alpha: number): void {
-        const ctx = this.previewCtx;
+        // The stack coordinates are full-backbuffer (1920x1080), so this must
+        // target the HUD overlay canvas - the 128x128 preview canvas would
+        // clip everything (x >= 199, y >= 301 are off its bitmap entirely).
+        const ctx = this.galleryCtx;
         if (ctx === undefined) {
             return;
         }
