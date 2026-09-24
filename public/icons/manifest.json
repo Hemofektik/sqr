@@ -1269,6 +1269,26 @@
   {
    "name": "magnifier",
    "file": "mix/zoom.png"
+  },
+  {
+   "name": "Video Camera",
+   "file": "mix/32videocamera.png"
+  },
+  {
+   "name": "Globe",
+   "file": "mix/48globe.png"
+  },
+  {
+   "name": "Anchor",
+   "file": "mix/anchor.png"
+  },
+  {
+   "name": "Breakpoint",
+   "file": "mix/breakpoint.png"
+  },
+  {
+   "name": "Racket",
+   "file": "mix/sport_raquet.png"
   }
  ]
 }
