@@ -32,7 +32,7 @@ const FONT_JSON = fontJsonRaw as FontJson;
 
 const GAME_NAME = "Superquadriddle";
 
-const ICON_CATEGORIES = ["Common Flags", "Uncommon Flags", "Food", "Mix"];
+const ICON_CATEGORIES = ["Flags", "Food", "Mix"];
 
 interface IconManifestEntry {
     name: string;

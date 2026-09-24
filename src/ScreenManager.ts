@@ -29,7 +29,7 @@ export interface ScreenContext {
     dt: number;
     /** Change the background animation colors (MenuBackGround, BackGround). */
     startBackgroundAnimation(color1: [number, number, number, number], color2: [number, number, number, number]): void;
-    /** Icon category names, e.g. ["Common Flags", "Food", "Mix"]. */
+    /** Icon category names, e.g. ["Flags", "Food", "Mix"]. */
     getCategories(): string[];
     /** Number of icons in a category. */
     getNumIcons(category: string): Promise<number>;

@@ -1,5 +1,5 @@
 {
- "Common Flags": [
+ "Flags": [
   {
    "name": "Canada",
    "file": "flags/ca.png"
@@ -475,9 +475,7 @@
   {
    "name": "Kuwait",
    "file": "flags/kw.png"
-  }
- ],
- "Uncommon Flags": [
+  },
   {
    "name": "Wales",
    "file": "flags/wales.png"
