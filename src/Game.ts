@@ -7,7 +7,7 @@ import { SQFont } from "./SQFont.ts";
 import { ScreenManager } from "./ScreenManager.ts";
 import type { ScreenContext, GameScreen } from "./ScreenManager.ts";
 import { MenuScreen } from "./MenuScreen.ts";
-import { loadIconImage } from "./IconProvider.ts";
+import { loadIconImage, loadIconImages } from "./IconProvider.ts";
 import { RotationGameScreen } from "./RotationGameScreen.ts";
 import type { GameMode, IconImage, RotationGameHost } from "./RotationGame.ts";
 import { UserConfig } from "./UserConfig.ts";
@@ -170,17 +170,14 @@ export class Game {
             },
             loadAllIcons: async (category: string, onLoaded?: (index: number, image: IconImage) => void) => {
                 const entries = await this.loadIconList(category);
-                const images: IconImage[] = new Array(entries.length);
-                // Load in parallel: the merged Flags category has 238 icons
-                // and a strictly sequential load took visibly long. Each icon
-                // streams out through onLoaded as soon as it is ready.
-                await Promise.all(entries.map(async (entry, n) => {
-                    const image = await loadIconImage(`/assets/icons/${entry.file}`);
-                    await this.getPreviewBitmap(image);
-                    images[n] = image;
-                    onLoaded?.(n, image);
-                }));
-                return images;
+                const urls = entries.map((entry) => `/assets/icons/${entry.file}`);
+                // Fetch/decode runs in parallel; the canvas work (pixel
+                // extraction + preview bitmap) is time-sliced by
+                // loadIconImages so the gallery never stutters while it fills.
+                return await loadIconImages(urls, (index, image) => {
+                    void this.getPreviewBitmap(image);
+                    onLoaded?.(index, image);
+                });
             },
             getIconNames: (category: string) => {
                 return this.iconNamesCache.get(category) ?? [];
