@@ -31,6 +31,11 @@ export class RotationGameScreen extends GameScreen {
         this.categoryIndex = categoryIndex;
         this.categoryName = categoryName;
         this.batch = new SuperQuadricBatch(16, 4096, false);
+        // Port of IconMap.Draw: gdev.BlendState = BlendState.NonPremultiplied
+        // - the original DID alpha-blend the voxels (and sorts them
+        // back-to-front for it). Without blending, low-alpha edge pixels of
+        // the icon (barely visible in 2D) render as solid dark voxels.
+        this.batch.setBlending(true);
         this.scene.add(this.batch.mesh);
         this.rotGame = new RotationGame(host, gameMode, categoryIndex, categoryName);
     }
