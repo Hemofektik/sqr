@@ -168,19 +168,18 @@ export class Game {
             drawHudTexture: (name, x, y, alpha) => {
                 this.drawHudTexture(name, x, y, alpha);
             },
-            loadAllIcons: async (category: string) => {
+            loadAllIcons: async (category: string, onLoaded?: (index: number, image: IconImage) => void) => {
                 const entries = await this.loadIconList(category);
-                const images: IconImage[] = [];
-                for (let n = 0; n < entries.length; n++) {
-                    const entry = entries[n];
-                    if (entry === undefined) {
-                        continue;
-                    }
+                const images: IconImage[] = new Array(entries.length);
+                // Load in parallel: the merged Flags category has 238 icons
+                // and a strictly sequential load took visibly long. Each icon
+                // streams out through onLoaded as soon as it is ready.
+                await Promise.all(entries.map(async (entry, n) => {
                     const image = await loadIconImage(`/assets/icons/${entry.file}`);
                     await this.getPreviewBitmap(image);
-                    this.iconNameCache.set(`${category}:${n}`, entry.name);
-                    images.push(image);
-                }
+                    images[n] = image;
+                    onLoaded?.(n, image);
+                }));
                 return images;
             },
             getIconNames: (category: string) => {

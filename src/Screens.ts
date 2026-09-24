@@ -740,6 +740,8 @@ export class GalleryScreen extends GameScreen {
     private firstColIndex = 0;
     private iconName = "";
     private images: IconImage[] = [];
+    private loadComplete = false;
+    private loadGeneration = 0;
     private readonly spinner = new LoadingSpinner();
 
     public constructor() {
@@ -762,7 +764,27 @@ export class GalleryScreen extends GameScreen {
     private async loadCategory(): Promise<void> {
         const categories = this.manager?.context.getCategories() ?? [];
         const category = categories[this.categoryIndex] ?? "";
-        this.images = await this.manager?.context.loadAllIcons(category) ?? [];
+        const context = this.manager?.context;
+        if (context === undefined) {
+            return;
+        }
+        const generation = ++this.loadGeneration;
+        this.loadComplete = false;
+        const count = await context.getNumIcons(category);
+        if (this.loadGeneration !== generation) {
+            return; // The user switched categories meanwhile.
+        }
+        // Pre-allocate the full slot count so the grid layout stays stable
+        // while the icons stream in.
+        this.images = new Array<IconImage>(count);
+        await context.loadAllIcons(category, (index, image) => {
+            if (this.loadGeneration === generation) {
+                this.images[index] = image;
+            }
+        });
+        if (this.loadGeneration === generation) {
+            this.loadComplete = true;
+        }
     }
 
     /** Port of the category-switch input (PageUp/PageDown). */
@@ -857,8 +879,10 @@ export class GalleryScreen extends GameScreen {
         }
 
         // While the icons load, animate a superquadric ring as a loading
-        // indicator.
-        if (this.images.length === 0) {
+        // indicator. It stays until every icon arrived and is visible
+        // through the not-yet-filled grid slots below, so the filling grid
+        // itself shows the progress.
+        if (!this.loadComplete) {
             this.spinner.update(ctx.gameTime);
             ctx.renderScene(this.spinner.scene, this.spinner.camera, 0.2, 0.9);
             const loadFontColor = new Vec4(1, 1, 1, alpha);
@@ -872,7 +896,6 @@ export class GalleryScreen extends GameScreen {
             );
             setupFontCamera(font, new Vec3(0, 0, 1));
             font.flush(true);
-            return;
         }
 
         if (alpha > 0.001) {

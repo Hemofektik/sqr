@@ -68,8 +68,10 @@ export interface ScreenContext {
     drawGalleryIcon(image: IconImage, x: number, y: number, height: number, alpha: number): void;
     /** Draws the locked-image placeholder at the same position. */
     drawLockedIcon(x: number, y: number, height: number, alpha: number): void;
-    /** Loads every icon of a category (gallery grid). */
-    loadAllIcons(category: string): Promise<IconImage[]>;
+    /** Loads every icon of a category (gallery grid). Images stream in via
+     * onLoaded as soon as each one is ready; the promise resolves when all
+     * have finished. */
+    loadAllIcons(category: string, onLoaded?: (index: number, image: IconImage) => void): Promise<IconImage[]>;
     /** Display names of all icons of a category, in order. */
     getIconNames(category: string): string[];
     /** Starts a rotation game, replacing the current screens (LoadingScreen.Load). */
