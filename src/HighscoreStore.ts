@@ -43,37 +43,11 @@ function readAll(): StorageRecord {
             return {};
         }
         const parsed = JSON.parse(raw) as StorageRecord;
-        if (typeof parsed !== "object" || parsed === null) {
-            return {};
-        }
-        return migrate(parsed);
+        return typeof parsed === "object" && parsed !== null ? parsed : {};
     } catch {
         // Corrupted storage: start from defaults.
         return {};
     }
-}
-
-/**
- * One-time remap after the two flag categories were merged. Only the old
- * 4-category layout has boards keyed ":3" (Mix), so its presence detects
- * stale data: common/uncommon (":0"/":1") merge into ":0" (best-of top 10),
- * food ":2" moves to ":1", mix ":3" moves to ":2".
- */
-function migrate(record: StorageRecord): StorageRecord {
-    if (!Object.keys(record).some((k) => k.endsWith(":3"))) {
-        return record;
-    }
-    const out: StorageRecord = {};
-    for (const [k, entries] of Object.entries(record)) {
-        const sep = k.lastIndexOf(":");
-        const cat = Number(k.slice(sep + 1));
-        const newKey = cat <= 1 ? `${k.slice(0, sep)}:0` : `${k.slice(0, sep)}:${cat - 1}`;
-        const merged = (out[newKey] ?? []).concat(entries ?? []);
-        merged.sort((a, b) => b.score - a.score);
-        out[newKey] = merged.slice(0, 10);
-    }
-    writeAll(out);
-    return out;
 }
 
 function writeAll(record: StorageRecord): void {

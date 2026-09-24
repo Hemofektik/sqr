@@ -47,34 +47,13 @@ export class UserConfig {
             }
             const parsed = JSON.parse(raw) as Partial<UserConfigData>;
             const defaults = defaultConfig(numCategories);
-            // Migration: the two flag categories were merged into one, so the
-            // stored unlock counts shrink from 4 to 3 entries:
-            // [common, uncommon, food, mix] -> [merged flags, food, mix].
-            // One free unlock set is dropped (the merged category has its own
-            // default), and the stored category index remaps 0/1 -> 0.
-            const oldUnlocked = parsed.numIconsUnlocked;
-            const isOldLayout = oldUnlocked !== undefined
-                && oldUnlocked.length === defaults.numIconsUnlocked.length + 1;
-            let numIconsUnlocked = defaults.numIconsUnlocked.map(
-                (def, i) => oldUnlocked?.[i] ?? def,
-            );
-            let category = parsed.category ?? defaults.category;
-            if (isOldLayout && oldUnlocked !== undefined) {
-                numIconsUnlocked = [
-                    Math.max(
-                        NUM_UNLOCKED_ICONS_BY_DEFAULT,
-                        (oldUnlocked[0] ?? 0) + (oldUnlocked[1] ?? 0) - NUM_UNLOCKED_ICONS_BY_DEFAULT,
-                    ),
-                    oldUnlocked[2] ?? defaults.numIconsUnlocked[1] ?? 0,
-                    oldUnlocked[3] ?? defaults.numIconsUnlocked[2] ?? 0,
-                ];
-                category = category <= 1 ? 0 : category - 1;
-            }
             this.data = {
                 ...defaults,
                 ...parsed,
-                category,
-                numIconsUnlocked,
+                // Guard against category-count changes between versions.
+                numIconsUnlocked: defaults.numIconsUnlocked.map(
+                    (def, i) => parsed.numIconsUnlocked?.[i] ?? def,
+                ),
             };
         } catch {
             // Corrupted storage: keep defaults.
