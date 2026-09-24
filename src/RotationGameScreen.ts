@@ -157,7 +157,10 @@ export class RotationGameScreen extends GameScreen {
                 // step instead: the pile never reaches the Next Unlock text
                 // at y=815 - all icons stay visible above it.
                 const step = Math.min(70, (815 - 64 - (115 + 128 + 128)) / Math.max(1, remaining - 1));
-                for (let n = start; n < game.getRandomListLength(); n++) {
+                // Draw back-to-front: the deepest icons first, the next icon
+                // (and the animating one) last, so the next icon sits ON TOP
+                // of the pile instead of being buried under later entries.
+                for (let n = game.getRandomListLength() - 1; n >= start; n--) {
                     const image = game.getIconImageAt(n);
                     if (image === undefined) {
                         continue;
