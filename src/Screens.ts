@@ -736,6 +736,8 @@ export class GalleryScreen extends GameScreen {
 
     private floatingRowIndex = 0;
     private firstRowIndex = 0;
+    private floatingColIndex = 0;
+    private firstColIndex = 0;
     private iconName = "";
     private images: IconImage[] = [];
     private readonly spinner = new LoadingSpinner();
@@ -775,6 +777,8 @@ export class GalleryScreen extends GameScreen {
         this.images = [];
         this.floatingRowIndex = 0;
         this.firstRowIndex = 0;
+        this.floatingColIndex = 0;
+        this.firstColIndex = 0;
         void this.loadCategory();
     }
 
@@ -886,6 +890,15 @@ export class GalleryScreen extends GameScreen {
             this.floatingRowIndex += (targetFirstRow - this.floatingRowIndex) * Math.min(1, ctx.dt * 5);
             this.firstRowIndex = Math.round(this.floatingRowIndex);
 
+            // Smooth column window: the merged Flags category (238 icons, 34
+            // columns) has more columns than fit, so keep the selected column
+            // visible. Stays pinned at 0 while everything fits.
+            const targetColIndex = Math.floor(this.selectedImageIndex / GalleryScreen.NUM_FILES_ON_SCREEN_Y);
+            const maxFirstCol = Math.max(0, numColumns - GalleryScreen.NUM_FILES_ON_SCREEN_X);
+            const targetFirstCol = Math.max(0, Math.min(maxFirstCol, targetColIndex));
+            this.floatingColIndex += (targetFirstCol - this.floatingColIndex) * Math.min(1, ctx.dt * 5);
+            this.firstColIndex = Math.round(this.floatingColIndex);
+
             const names = this.manager?.context.getIconNames(category) ?? [];
             this.iconName = names[this.selectedImageIndex] ?? "";
 
@@ -893,10 +906,10 @@ export class GalleryScreen extends GameScreen {
             // index within each column by firstRowIndex.
             const numVisibleColumns = Math.min(
                 GalleryScreen.NUM_FILES_ON_SCREEN_X,
-                numColumns - 0,
+                numColumns - this.firstColIndex,
             );
             for (let col = 0; col < numVisibleColumns; col++) {
-                const columnStart = col * GalleryScreen.NUM_FILES_ON_SCREEN_Y;
+                const columnStart = (this.firstColIndex + col) * GalleryScreen.NUM_FILES_ON_SCREEN_Y;
                 const columnSize = Math.min(
                     GalleryScreen.NUM_FILES_ON_SCREEN_Y,
                     numIcons - columnStart,
