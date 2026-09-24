@@ -1072,203 +1072,203 @@
  "Mix": [
   {
    "name": "Cake",
-   "file": "cake.png"
+   "file": "mix/cake.png"
   },
   {
    "name": "Book",
-   "file": "book.png"
+   "file": "mix/book.png"
   },
   {
    "name": "Paper Clip",
-   "file": "attach.png"
+   "file": "mix/attach.png"
   },
   {
    "name": "Bell",
-   "file": "bell.png"
+   "file": "mix/bell.png"
   },
   {
    "name": "Bin",
-   "file": "bin.png"
+   "file": "mix/bin.png"
   },
   {
    "name": "Bomb",
-   "file": "bomb.png"
+   "file": "mix/bomb.png"
   },
   {
    "name": "Building Blocks",
-   "file": "bricks.png"
+   "file": "mix/bricks.png"
   },
   {
    "name": "Bug",
-   "file": "bug.png"
+   "file": "mix/bug.png"
   },
   {
    "name": "Building",
-   "file": "building.png"
+   "file": "mix/building.png"
   },
   {
    "name": "Bullet Disk",
-   "file": "bullet_disk.png"
+   "file": "mix/bullet_disk.png"
   },
   {
    "name": "Calculator",
-   "file": "calculator.png"
+   "file": "mix/calculator.png"
   },
   {
    "name": "Calendar",
-   "file": "calendar.png"
+   "file": "mix/calendar.png"
   },
   {
    "name": "Camera",
-   "file": "camera.png"
+   "file": "mix/camera.png"
   },
   {
    "name": "Car",
-   "file": "car.png"
+   "file": "mix/car.png"
   },
   {
    "name": "Cart",
-   "file": "cart.png"
+   "file": "mix/cart.png"
   },
   {
    "name": "Clock",
-   "file": "clock.png"
+   "file": "mix/clock.png"
   },
   {
    "name": "Coins",
-   "file": "coins.png"
+   "file": "mix/coins.png"
   },
   {
    "name": "Computer",
-   "file": "computer.png"
+   "file": "mix/computer.png"
   },
   {
    "name": "Controller",
-   "file": "controller.png"
+   "file": "mix/controller.png"
   },
   {
    "name": "Cup",
-   "file": "cup.png"
+   "file": "mix/cup.png"
   },
   {
    "name": "Scissors",
-   "file": "cut_red.png"
+   "file": "mix/cut_red.png"
   },
   {
    "name": "Tongue Smiley",
-   "file": "emoticon_tongue.png"
+   "file": "mix/emoticon_tongue.png"
   },
   {
    "name": "House",
-   "file": "home.png"
+   "file": "mix/home.png"
   },
   {
    "name": "Joystick",
-   "file": "joystick.png"
+   "file": "mix/joystick.png"
   },
   {
    "name": "Key",
-   "file": "key.png"
+   "file": "mix/key.png"
   },
   {
    "name": "Lorry",
-   "file": "lorry.png"
+   "file": "mix/lorry.png"
   },
   {
    "name": "Microphone",
-   "file": "mic.png"
+   "file": "mix/mic.png"
   },
   {
    "name": "Euro Symbol",
-   "file": "money_euro.png"
+   "file": "mix/money_euro.png"
   },
   {
    "name": "Pound Symbol",
-   "file": "money_pound.png"
+   "file": "mix/money_pound.png"
   },
   {
    "name": "Note",
-   "file": "music.png"
+   "file": "mix/music.png"
   },
   {
    "name": "Newspaper",
-   "file": "newspaper.png"
+   "file": "mix/newspaper.png"
   },
   {
    "name": "Paintbrush",
-   "file": "paintbrush.png"
+   "file": "mix/paintbrush.png"
   },
   {
    "name": "Paint Can",
-   "file": "paintcan.png"
+   "file": "mix/paintcan.png"
   },
   {
    "name": "Color Palette",
-   "file": "palette.png"
+   "file": "mix/palette.png"
   },
   {
    "name": "Pencil",
-   "file": "pencil.png"
+   "file": "mix/pencil.png"
   },
   {
    "name": "Phone",
-   "file": "phone.png"
+   "file": "mix/phone.png"
   },
   {
    "name": "Piece of a Puzzle",
-   "file": "plugin.png"
+   "file": "mix/plugin.png"
   },
   {
    "name": "Pushpin",
-   "file": "pushpin.png"
+   "file": "mix/pushpin.png"
   },
   {
    "name": "Rainbow",
-   "file": "rainbow.png"
+   "file": "mix/rainbow.png"
   },
   {
    "name": "Eight-ball",
-   "file": "sport_8ball.png"
+   "file": "mix/sport_8ball.png"
   },
   {
    "name": "Basketball",
-   "file": "sport_basketball.png"
+   "file": "mix/sport_basketball.png"
   },
   {
    "name": "Football",
-   "file": "sport_football.png"
+   "file": "mix/sport_football.png"
   },
   {
    "name": "Shuttlecock",
-   "file": "sport_shuttlecock.png"
+   "file": "mix/sport_shuttlecock.png"
   },
   {
    "name": "Telephone",
-   "file": "telephone.png"
+   "file": "mix/telephone.png"
   },
   {
    "name": "TV set",
-   "file": "television.png"
+   "file": "mix/television.png"
   },
   {
    "name": "Cloudy Weather",
-   "file": "weather_cloudy.png"
+   "file": "mix/weather_cloudy.png"
   },
   {
    "name": "Lightning",
-   "file": "weather_lightning.png"
+   "file": "mix/weather_lightning.png"
   },
   {
    "name": "Rain",
-   "file": "weather_rain.png"
+   "file": "mix/weather_rain.png"
   },
   {
    "name": "Wrench",
-   "file": "wrench_orange.png"
+   "file": "mix/wrench_orange.png"
   },
   {
    "name": "magnifier",
-   "file": "zoom.png"
+   "file": "mix/zoom.png"
   }
  ]
 }
