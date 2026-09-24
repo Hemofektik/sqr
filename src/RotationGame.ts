@@ -306,28 +306,34 @@ export class RotationGame {
     private async loadNewIcon(totalGameTime: number): Promise<void> {
         this.prevIconImage = this.iconImage;
         const index = this.randomIconIndex[this.currentIconIndex];
-        if (index === undefined) {
-            return;
+        if (index === undefined && this.randomIconIndex.length === 0) {
+            return; // Icon list not created yet (startup) - retry next frame.
         }
-        this.iconImage = await this.host.loadIcon(this.categoryName, index);
-        this.iconImageCache.set(index, this.iconImage);
-
-        const mainColor = this.im.init(
-            this.iconImage.width,
-            this.iconImage.height,
-            this.iconImage.data,
-            totalGameTime,
-        );
-
-        // Set the background to a contrasting color for best icon contrast.
-        const bgColor = new Vec4(1 - mainColor.x, 1 - mainColor.y, 1 - mainColor.z, 1);
-        if (isColorGreyish(mainColor)) {
-            bgColor.x = this.colorRandomizer();
-            bgColor.y = 1 - bgColor.x;
-            bgColor.z = this.colorRandomizer();
+        if (index !== undefined) {
+            this.iconImage = await this.host.loadIcon(this.categoryName, index);
+            this.iconImageCache.set(index, this.iconImage);
         }
-        // Animated on the global clock (bgr.StartAnimation in the original).
-        this.host.startBackgroundAnimation(bgColor);
+        // Port: the original bounds-checks the load but still re-initializes
+        // with the previous iconTex and runs the increment + stack-empty check
+        // below - that is what ends Challenge when the stack is exhausted.
+        if (this.iconImage !== undefined) {
+            const mainColor = this.im.init(
+                this.iconImage.width,
+                this.iconImage.height,
+                this.iconImage.data,
+                totalGameTime,
+            );
+
+            // Set the background to a contrasting color for best icon contrast.
+            const bgColor = new Vec4(1 - mainColor.x, 1 - mainColor.y, 1 - mainColor.z, 1);
+            if (isColorGreyish(mainColor)) {
+                bgColor.x = this.colorRandomizer();
+                bgColor.y = 1 - bgColor.x;
+                bgColor.z = this.colorRandomizer();
+            }
+            // Animated on the global clock (bgr.StartAnimation in the original).
+            this.host.startBackgroundAnimation(bgColor);
+        }
 
         this.currentIconIndex++;
         if (this.gameMode === "Challenge") {

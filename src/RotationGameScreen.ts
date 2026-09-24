@@ -149,6 +149,14 @@ export class RotationGameScreen extends GameScreen {
             if (game.getGameMode() === "Challenge") {
                 const progress = game.getCamFuzzingProgress();
                 const start = Math.max(0, game.getCurrentIconIndex() - 1);
+                const remaining = Math.max(1, game.getRandomListLength() - game.getCurrentIconIndex());
+                // The original drew all icons with a fixed 70px step (its
+                // computed sizeYPerIcon = 500/remaining was never used) and
+                // its unlock text drew ON TOP of the sprites. Our stack lives
+                // on the 2D overlay, above the WebGL text, so compress the
+                // step instead: the pile never reaches the Next Unlock text
+                // at y=815 - all icons stay visible above it.
+                const step = Math.min(70, (815 - 64 - (115 + 128 + 128)) / Math.max(1, remaining - 1));
                 for (let n = start; n < game.getRandomListLength(); n++) {
                     const image = game.getIconImageAt(n);
                     if (image === undefined) {
@@ -156,7 +164,7 @@ export class RotationGameScreen extends GameScreen {
                     }
                     const scaleOffset = n === game.getCurrentIconIndex() - 1 ? 32 * progress : 0;
                     const x = 199 + 32 - scaleOffset;
-                    const y = 115 + 128 + 128 - scaleOffset + ((n - game.getCurrentIconIndex()) - progress) * (70 + scaleOffset);
+                    const y = 115 + 128 + 128 - scaleOffset + ((n - game.getCurrentIconIndex()) - progress) * (step + scaleOffset);
                     const size = 64 + scaleOffset * 2;
                     const alpha = hudVisibility * (n === game.getCurrentIconIndex() - 1 ? 1 - Math.pow(progress, 5) : 1);
                     ctx.drawStackIcon(image, x, y, size, alpha);
