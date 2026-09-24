@@ -750,6 +750,27 @@ export class Game {
                 }
                 return image;
             },
+            prefetchIcons: async (category: string, indices: number[], onReady: (index: number, image: IconImage) => void) => {
+                const entries = await this.loadIconList(category);
+                const urls: string[] = [];
+                const sourceIndices: number[] = [];
+                for (const index of indices) {
+                    const entry = entries[index];
+                    if (entry !== undefined) {
+                        urls.push(`/assets/icons/${entry.file}`);
+                        sourceIndices.push(index);
+                    }
+                }
+                // Same batch loader as the gallery: fetch/decode in parallel,
+                // canvas work time-sliced so gameplay frames stay smooth.
+                await loadIconImages(urls, (position, image) => {
+                    void this.getPreviewBitmap(image);
+                    const index = sourceIndices[position];
+                    if (index !== undefined) {
+                        onReady(index, image);
+                    }
+                });
+            },
             getIconName: (category: string, index: number) => {
                 // Resolve from the manifest list (synchronously available
                 // once the list was fetched; the game fetches it on start).

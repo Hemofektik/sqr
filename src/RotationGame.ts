@@ -34,6 +34,12 @@ export interface RotationGameHost {
     font: SQFont;
     /** Loads an icon image by category and index (browser texture loading). */
     loadIcon(category: string, index: number): Promise<IconImage>;
+    /**
+     * Warms icon images in the background through the time-sliced batch
+     * loader (port of IconPrefetcher). Each ready image streams through
+     * onReady with its manifest index.
+     */
+    prefetchIcons(category: string, indices: number[], onReady: (index: number, image: IconImage) => void): Promise<void>;
     getNumIcons(category: string): Promise<number>;
     /** Display name of an icon (for the unlock display). */
     getIconName(category: string, index: number): string;
@@ -283,6 +289,16 @@ export class RotationGame {
             if (picked !== undefined) {
                 this.randomIconIndex.push(picked);
             }
+        }
+
+        if (this.gameMode === "Challenge") {
+            // Port of IconPrefetcher: the Challenge stack HUD draws every
+            // remaining icon up front, so warm them all in the background
+            // (time-sliced, so it never stutters) and cache them as they
+            // stream in - same cache loadNewIcon uses.
+            void this.host.prefetchIcons(this.categoryName, this.randomIconIndex, (index, image) => {
+                this.iconImageCache.set(index, image);
+            });
         }
     }
 
