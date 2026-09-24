@@ -176,9 +176,19 @@ export class RotationGameScreen extends GameScreen {
                     if (image === undefined) {
                         continue;
                     }
-                    const scaleOffset = n === game.getCurrentIconIndex() - 1 ? 32 * progress : 0;
+                    const isAnimating = n === game.getCurrentIconIndex() - 1;
+                    const scaleOffset = isAnimating ? 32 * progress : 0;
                     const x = 199 + 32 - scaleOffset;
-                    const y = 115 + 128 + 128 - scaleOffset + ((n - game.getCurrentIconIndex()) - progress) * (step + scaleOffset);
+                    // The animating icon's landing spot was calibrated for the
+                    // original's fixed 70px step (it ends at y = 135, inside
+                    // the preview); with a compressed step its travel shrank
+                    // proportionally and it parked below the preview. Anchor
+                    // its START in the pile slot (continuity) but keep the
+                    // original END point - at step 70 this is identical to
+                    // the original formula.
+                    const y = isAnimating
+                        ? (115 + 128 + 128 - step) - progress * (204 - step) - 32 * progress * progress
+                        : 115 + 128 + 128 - scaleOffset + ((n - game.getCurrentIconIndex()) - progress) * (step + scaleOffset);
                     const size = 64 + scaleOffset * 2;
                     const alpha = hudVisibility * (n === game.getCurrentIconIndex() - 1 ? 1 - Math.pow(progress, 5) : 1);
                     ctx.drawStackIcon(image, x, y, size, alpha);
