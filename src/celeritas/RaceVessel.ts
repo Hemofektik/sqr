@@ -37,11 +37,27 @@ const GRIP_MU = 2;
 /** Full-throttle force; with the body's linear damping (0.65) the top
  * speed settles around 400 m/s. */
 const THRUST = 260;
-/** Steering torque scales (steeringAmount keeps the original's units).
- * Sized against the hull's inertia and angular damping: at full input the
- * yaw must reach ~0.5 rad/s to hold a 1000-radius turn at 300 m/s. */
-const YAW_TORQUE = 0.5;
-const PITCH_TORQUE = 0.3;
+/** Arcade steering: input commands a yaw/pitch RATE (rad/s) that is driven
+ * directly into angular velocity - "drive angular_velocity, not torque
+ * through inertia" for instant, bounded authority. Halved at top speed
+ * (speed-sensitivity curve) so fast turns stay wide and controllable. */
+const YAW_RATE_MAX = 1.1;
+const PITCH_RATE_MAX = 0.6;
+const STEER_RESPONSE = 30; // per second; ~90% of the command in 0.1s
+// Held-input equilibrium of the original accumulate/decay loop
+// (steeringAmount += input*scale; *= 0.5-dt per frame): scale*d/(1-d)
+// with d=0.483 -> 100*0.935=93 for yaw, 30*0.935=28 for pitch.
+// Normalizing by the clamp (550) would cap held input at ~17% authority.
+const STEERING_INPUT_MAX_Y = 93;
+const STEERING_INPUT_MAX_X = 28;
+/** Velocity catches up to the heading (Ridge Racer: "you drive the heading,
+ * the velocity catches up"): lateral speed decays exponentially - firmly on
+ * the ground so turns grip, gently in the air for AGR-style float. */
+const GRIP_ALIGN_GROUNDED = 6;
+const GRIP_ALIGN_AIR = 1.2;
+const GRIP_ALIGN_FORCE_MAX = 100;
+/** Visual bank into turns (radians at full input). */
+const MAX_VISUAL_ROLL = 0.5;
 /** Self-righting assist toward world up, in world axes like the original
  * StayUprightConstraint but fighting real angular velocity. */
 const UPRIGHT_K = 50;
@@ -216,17 +232,49 @@ export class RaceVessel {
             );
         }
 
-        // Steering: torque around the hull's own axes (also works in the air).
-        const pitch = this.steeringAmount.x * PITCH_TORQUE * dt;
-        const yaw = this.steeringAmount.y * YAW_TORQUE * dt;
-        body.applyTorqueImpulse(
-            {
-                x: right.x * pitch + up.x * yaw,
-                y: right.y * pitch + up.y * yaw,
-                z: right.z * pitch + up.z * yaw,
-            },
-            true,
-        );
+        // Velocity catches up to the heading: bleed off lateral speed so the
+        // ship grips through turns instead of sliding endlessly (arcade
+        // drift model - grounded firm, airborne gentle).
+        {
+            const vLat = linvel.x * right.x + linvel.y * right.y + linvel.z * right.z;
+            const rate = grounded ? GRIP_ALIGN_GROUNDED : GRIP_ALIGN_AIR;
+            const maxForce = grounded ? GRIP_ALIGN_FORCE_MAX : GRIP_ALIGN_FORCE_MAX / 4;
+            const force = Math.max(-maxForce, Math.min(maxForce, -vLat * rate));
+            if (force !== 0) {
+                body.applyImpulse(
+                    { x: right.x * force * dt, y: right.y * force * dt, z: right.z * force * dt },
+                    true,
+                );
+            }
+        }
+
+        // Arcade steering: command yaw/pitch rates by driving angular
+        // velocity directly (input-to-turn latency under two frames, and a
+        // bounded rate means no pirouettes). Speed-sensitive: authority is
+        // halved at top speed. Contacts still win inside the solver; the
+        // rate is simply re-asserted the next substep.
+        {
+            const speedScale = 1 / (1 + this.speed / 400);
+            const steerY = Math.max(-1, Math.min(1, this.steeringAmount.y / STEERING_INPUT_MAX_Y));
+            const steerX = Math.max(-1, Math.min(1, this.steeringAmount.x / STEERING_INPUT_MAX_X));
+            const targetYaw = steerY * YAW_RATE_MAX * speedScale;
+            const targetPitch = steerX * PITCH_RATE_MAX * speedScale;
+            const omegaUp = omega.x * up.x + omega.y * up.y + omega.z * up.z;
+            const omegaRight = omega.x * right.x + omega.y * right.y + omega.z * right.z;
+            const blend = 1 - Math.exp(-STEER_RESPONSE * dt);
+            const yawNext = omegaUp + (targetYaw - omegaUp) * blend;
+            const pitchNext = omegaRight + (targetPitch - omegaRight) * blend;
+            const dy = yawNext - omegaUp;
+            const dp = pitchNext - omegaRight;
+            body.setAngvel(
+                {
+                    x: omega.x + dy * up.x + dp * right.x,
+                    y: omega.y + dy * up.y + dp * right.y,
+                    z: omega.z + dy * up.z + dp * right.z,
+                },
+                true,
+            );
+        }
         // Self-righting assist: while grounded, hug the surface normal (like
         // the original StayUprightConstraint following the road); in the air,
         // level toward world up. Damped by real angular velocity.
@@ -270,7 +318,10 @@ export class RaceVessel {
      * draw them, and returns the composed rotation for the light transform.
      */
     public prepareDraw(): Quat {
-        const roll = Quat.createFromYawPitchRoll(0, 0, -this.steeringAmount.y * 0.01);
+        // Visual bank into turns: normalized input (original scaled the raw
+        // accumulator, which swept through full rolls as it ramped up).
+        const steerNorm = Math.max(-1, Math.min(1, this.steeringAmount.y / STEERING_INPUT_MAX_Y));
+        const roll = Quat.createFromYawPitchRoll(0, 0, -steerNorm * MAX_VISUAL_ROLL);
         const vesselRotation = this.rotation.multiply(roll);
         this.lastDrawRotation = vesselRotation;
         const rotMat = vesselRotation.toMat4();

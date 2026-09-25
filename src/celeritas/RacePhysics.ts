@@ -55,6 +55,8 @@ export class CeleritasWorld {
                 RAPIER.ColliderDesc.cuboid(b.dimension.x, b.dimension.y, b.dimension.z)
                     .setTranslation(e[12] ?? 0, e[13] ?? 0, e[14] ?? 0)
                     .setRestitution(0.3)
+                    // Low like the track: high friction here let a throttled
+                    // hull stick to a building wall in mid-air.
                     .setFriction(0.2),
                 scenery,
             );
