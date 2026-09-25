@@ -23,10 +23,14 @@ function wrapPi(a: number): number {
 
 /** Suspension ray reach - the hover gap below the hull corners. Must keep
  * margin over the equilibrium compression (m*g*cos(theta)/(4K)), otherwise
- * rays miss on tilted banks and the hull bottoms out into a friction lock. */
-const SUSPENSION_LENGTH = 1.6;
-/** Spring stiffness / damping per suspension ray (total ship mass is 1). */
-const SUSPENSION_K = 60;
+ * rays miss on tilted banks and the hull bottoms out into a friction lock.
+ * Short enough that the ship settles almost on the surface (the original
+ * rode ~0.5-1 above it; 1.6 left a visible permanent hover gap). */
+const SUSPENSION_LENGTH = 1.0;
+/** Spring stiffness / damping per suspension ray (total ship mass is 1).
+ * Soft enough that the static compression (~0.07 at g=20) leaves margin
+ * for the rays to keep hitting when the hull rolls on a bank. */
+const SUSPENSION_K = 40;
 const SUSPENSION_DAMPING = 5;
 /** Lateral grip while grounded: slip along the hull's right axis is damped
  * and capped at mu * spring load (Coulomb). Without this a hovering hull
@@ -56,6 +60,10 @@ const STEERING_INPUT_MAX_X = 28;
 const GRIP_ALIGN_GROUNDED = 6;
 const GRIP_ALIGN_AIR = 1.2;
 const GRIP_ALIGN_FORCE_MAX = 100;
+/** Airborne grip must stay well below weight (m*g = 20 N) - at the old
+ * 25 N cap a rolled hull falling treated its drop speed as sideslip and
+ * pushed up harder than gravity, cancelling the fall. */
+const GRIP_ALIGN_AIR_MAX = 4;
 /** Visual bank into turns (radians at full input). */
 const MAX_VISUAL_ROLL = 0.5;
 /** Self-righting assist toward world up, in world axes like the original
@@ -238,7 +246,7 @@ export class RaceVessel {
         {
             const vLat = linvel.x * right.x + linvel.y * right.y + linvel.z * right.z;
             const rate = grounded ? GRIP_ALIGN_GROUNDED : GRIP_ALIGN_AIR;
-            const maxForce = grounded ? GRIP_ALIGN_FORCE_MAX : GRIP_ALIGN_FORCE_MAX / 4;
+            const maxForce = grounded ? GRIP_ALIGN_FORCE_MAX : GRIP_ALIGN_AIR_MAX;
             const force = Math.max(-maxForce, Math.min(maxForce, -vLat * rate));
             if (force !== 0) {
                 body.applyImpulse(

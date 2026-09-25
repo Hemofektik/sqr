@@ -32,7 +32,10 @@ export class CeleritasWorld {
     public readonly shipCollider: RAPIER.Collider;
 
     public constructor(track: RaceTrack) {
-        this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+        // 2g: with the hull's linear drag the terminal fall speed is
+        // gravity/0.65 - at 9.81 that is a 15 m/s glide that reads as
+        // floating; 20 gives a brisk ~31 m/s descent.
+        this.world = new RAPIER.World({ x: 0, y: -20, z: 0 });
 
         const scenery = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
