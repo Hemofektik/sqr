@@ -202,9 +202,12 @@ export class RaceTrack {
                     building.sqParams = new Vec4(0, 0, 0, 0);
                     building.colorEmissive = new Vec4(0, 0, 0, 1);
 
+                    // NB: Vec3.sub/add are mutating instance methods - using
+                    // them here made min and max the same object (a point box),
+                    // so the filter barely rejected anything.
                     const bb: Aabb = {
-                        min: pos.sub(building.dimension),
-                        max: pos.add(building.dimension),
+                        min: Vec3.sub(pos, building.dimension),
+                        max: Vec3.add(pos, building.dimension),
                     };
                     if (!this.trackCollision.intersects(bb)) {
                         this.buildings.push(building);
