@@ -269,6 +269,33 @@ export class Mat4 {
         return m;
     }
 
+    /** Port of Matrix.CreateWorld(position, forward, up): rows are the world
+     * axes (row i = image of local basis i), translation = position. */
+    public static createWorld(position: Vec3, forward: Vec3, up: Vec3): Mat4 {
+        const z = Vec3.scale(forward.clone().normalize(), -1);
+        const x = Vec3.cross(up, z).normalize();
+        const y = Vec3.cross(z, x);
+        const m = new Mat4();
+        const e = m.elements;
+        e[0] = x.x;
+        e[1] = x.y;
+        e[2] = x.z;
+        e[3] = 0;
+        e[4] = y.x;
+        e[5] = y.y;
+        e[6] = y.z;
+        e[7] = 0;
+        e[8] = z.x;
+        e[9] = z.y;
+        e[10] = z.z;
+        e[11] = 0;
+        e[12] = position.x;
+        e[13] = position.y;
+        e[14] = position.z;
+        e[15] = 1;
+        return m;
+    }
+
     public static createPerspectiveOffCenter(
         left: number,
         right: number,
@@ -554,5 +581,40 @@ export class Quat {
         e[14] = 0;
         e[15] = 1;
         return m;
+    }
+
+    /** Port of Matrix -> Quaternion (inverse of toMat4 / XNA's
+     * Quaternion.CreateFromRotationMatrix). Rotation part only. */
+    public static fromMat4(m: Mat4): Quat {
+        const e = m.elements;
+        const get = (i: number): number => e[i] ?? 0;
+        const trace = get(0) + get(5) + get(10);
+        const q = new Quat(0, 0, 0, 1);
+        if (trace > 0) {
+            const s = 2 * Math.sqrt(trace + 1);
+            q.w = s / 4;
+            q.x = (get(6) - get(9)) / s;
+            q.y = (get(8) - get(2)) / s;
+            q.z = (get(1) - get(4)) / s;
+        } else if (get(0) > get(5) && get(0) > get(10)) {
+            const s = 2 * Math.sqrt(1 + get(0) - get(5) - get(10));
+            q.w = (get(6) - get(9)) / s;
+            q.x = s / 4;
+            q.y = (get(4) + get(1)) / s;
+            q.z = (get(8) + get(2)) / s;
+        } else if (get(5) > get(10)) {
+            const s = 2 * Math.sqrt(1 + get(5) - get(0) - get(10));
+            q.w = (get(8) - get(2)) / s;
+            q.x = (get(4) + get(1)) / s;
+            q.y = s / 4;
+            q.z = (get(6) + get(9)) / s;
+        } else {
+            const s = 2 * Math.sqrt(1 + get(10) - get(0) - get(5));
+            q.w = (get(1) - get(4)) / s;
+            q.x = (get(8) + get(2)) / s;
+            q.y = (get(6) + get(9)) / s;
+            q.z = s / 4;
+        }
+        return q.normalize();
     }
 }

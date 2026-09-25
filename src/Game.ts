@@ -9,6 +9,7 @@ import type { ScreenContext, GameScreen } from "./ScreenManager.ts";
 import { MenuScreen } from "./MenuScreen.ts";
 import { loadIconImage, loadIconImages } from "./IconProvider.ts";
 import { RotationGameScreen } from "./RotationGameScreen.ts";
+import { CeleritasScreen } from "./CeleritasScreen.ts";
 import type { GameMode, IconImage, RotationGameHost } from "./RotationGame.ts";
 import { UserConfig } from "./UserConfig.ts";
 import { AudioManager } from "./AudioManager.ts";
@@ -731,6 +732,31 @@ export class Game {
         return promise;
     }
 
+    /** Port of MainMenuScreen.HandleInput's Y binding: start Celeritas. */
+    private startCeleritas(): void {
+        for (const screen of this.screenManager.getScreens()) {
+            screen.exitScreen();
+        }
+        this.screenManager.addScreen(new CeleritasScreen());
+    }
+
+    /** Port of the exit flows (pause quit, Celeritas exit): leave all active
+     * screens and show a fresh main menu. */
+    private quitToMainMenu(): void {
+        for (const screen of this.screenManager.getScreens()) {
+            screen.exitScreen();
+        }
+        this.screenManager.addScreen(new MainMenuScreen(
+            () => this.screenManager.addScreen(new RotationGameModeScreen((gameMode, categoryIndex, categoryName) => {
+                this.startRotationGame(gameMode, categoryIndex, categoryName);
+            })),
+            () => this.screenManager.addScreen(new MessageBoxScreen(
+                `Are you sure you want to exit ${GAME_NAME}?`,
+                () => this.showToast("Close the browser tab to exit."),
+            )),
+        ));
+    }
+
     private startRotationGame(gameMode: GameMode, categoryIndex: number, categoryName: string): void {
         // Port of LoadingScreen.Load: the game replaces all current screens
         // (background + menus transition off).
@@ -915,6 +941,11 @@ export class Game {
 
         if (top instanceof MenuScreen) {
             if (down) {
+                if (top instanceof MainMenuScreen && (event.key === "y" || event.key === "Y")) {
+                    // Port of MainMenuScreen.HandleInput: Y opens Celeritas.
+                    this.startCeleritas();
+                    return;
+                }
                 if (event.key === "ArrowUp" || event.key === "w" || event.key === "W") {
                     top.handleMenuInput("up");
                 } else if (event.key === "ArrowDown" || event.key === "s" || event.key === "S") {
@@ -981,25 +1012,18 @@ export class Game {
         }
 
         if (top instanceof RotationGameScreen) {
-            if (down) {
-                if (event.key === "Escape") {
-                    // Port of PauseMenuScreen quit flow (simplified): leave the
-                    // game and load a fresh background + main menu, like
-                    // LoadingScreen.Load(..., new BackgroundScreen(),
-                    // new MainMenuScreen()).
-                    for (const screen of this.screenManager.getScreens()) {
-                        screen.exitScreen();
-                    }
-                    this.screenManager.addScreen(new MainMenuScreen(
-                        () => this.screenManager.addScreen(new RotationGameModeScreen((gameMode, categoryIndex, categoryName) => {
-                            this.startRotationGame(gameMode, categoryIndex, categoryName);
-                        })),
-                        () => this.screenManager.addScreen(new MessageBoxScreen(
-                            `Are you sure you want to exit ${GAME_NAME}?`,
-                            () => this.showToast("Close the browser tab to exit."),
-                        )),
-                    ));
-                }
+            if (down && event.key === "Escape") {
+                // Port of PauseMenuScreen quit flow (simplified): leave the
+                // game and load a fresh background + main menu.
+                this.quitToMainMenu();
+            }
+            return;
+        }
+
+        if (top instanceof CeleritasScreen) {
+            // Port: MenuSelect/MenuCancel exits back to the main menu.
+            if (down && (event.key === "Enter" || event.key === "Escape" || event.key === " ")) {
+                this.quitToMainMenu();
             }
             return;
         }
@@ -1034,6 +1058,19 @@ export class Game {
             if (yaw !== 0 || pitch !== 0) {
                 top.addRotationInput(yaw, pitch, dt);
             }
+        } else if (top instanceof CeleritasScreen) {
+            // Port of HandleInputInternal (keyboard): accelerate with up/down,
+            // steer with left/right, pitch with page up/down.
+            let accel = 0;
+            if (this.isKeyDown("ArrowUp")) accel = 1;
+            if (this.isKeyDown("ArrowDown")) accel = -1;
+            let steerX = 0;
+            let steerY = 0;
+            if (this.isKeyDown("ArrowRight")) steerY += -1;
+            if (this.isKeyDown("ArrowLeft")) steerY += 1;
+            if (this.isKeyDown("PageUp")) steerX += 1;
+            if (this.isKeyDown("PageDown")) steerX += -1;
+            top.setInput(accel, steerX, steerY);
         }
 
         this.background.update(this.gameTime);
@@ -1050,6 +1087,10 @@ export class Game {
     public draw(): void {
         this.renderer.setScissorTest(false);
         this.renderer.setViewport(0, 0, this.cssWidth, this.cssHeight);
+        // The racing screen replaces the background entirely - the original
+        // clears to CornflowerBlue before drawing the track.
+        const racingActive = this.screenManager.managesScreen("celeritas");
+        this.renderer.setClearColor(racingActive ? new Color(0x6495ed) : new Color(0, 0, 0), 1);
         this.renderer.clear(true, true, true);
 
         this.renderer.setViewport(this.viewportX, this.viewportY, this.viewportW, this.viewportH);
@@ -1057,11 +1098,13 @@ export class Game {
         // The game screen draws its own grid background (vpBackGround in XNA);
         // the menu swarm is only drawn while no game is running.
         const gameActive = this.screenManager.managesScreen("game");
-        gl.depthRange(0.9, 1);
-        this.renderer.render(this.background.gridScene, this.background.gridCamera);
-        if (!gameActive) {
-            gl.depthRange(0.5, 0.9);
-            this.renderer.render(this.background.menuScene, this.background.menuCamera);
+        if (!racingActive) {
+            gl.depthRange(0.9, 1);
+            this.renderer.render(this.background.gridScene, this.background.gridCamera);
+            if (!gameActive) {
+                gl.depthRange(0.5, 0.9);
+                this.renderer.render(this.background.menuScene, this.background.menuCamera);
+            }
         }
         // The 2D overlay (gallery grid + HUD hint textures) is cleared once
         // per frame before the screens draw into it.

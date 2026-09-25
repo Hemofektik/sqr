@@ -16,7 +16,8 @@ export type ScreenKind =
     | "gallery"
     | "help"
     | "messageBox"
-    | "game";
+    | "game"
+    | "celeritas";
 
 import type { SQFont } from "./SQFont.ts";
 import type { Camera, Scene } from "three";
