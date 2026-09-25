@@ -140,10 +140,14 @@ interface ShapeCache {
     emissive: InstancedBufferAttribute;
 }
 
-function fillShapeBuffers(numVerticesX: number, torus: boolean): {
+function fillShapeBuffers(numVerticesXRaw: number, torus: boolean): {
     sincos: Float32Array;
     indices: Uint16Array;
 } {
+    // Port of InitConstants: the grid is clamped to sane thresholds. The
+    // vessel requests 4 but the original renders it at 6 - below that the
+    // latitude samples miss the equator and the "round cubes" turn boxy.
+    const numVerticesX = Math.max(6, Math.min(180, numVerticesXRaw));
     const numQuadsX = numVerticesX - 1;
     const numVertices = numVerticesX * numVerticesX;
     const numIndices = numQuadsX * numQuadsX * 6;
