@@ -145,12 +145,17 @@ export class RaceTrack {
                 for (let x = 0; x < NUM_QUADS_X; x++) {
                     const x1 = Math.min(NUM_QUADS_X, x + 1);
                     const z1 = Math.min(NUM_QUADS_Y, z + 1);
+                    // Same layout as the original FillIndexBuffer, but with
+                    // each triangle's winding reversed: XNA/D3D culls
+                    // counter-clockwise faces while WebGL/three.js culls them,
+                    // so the original order makes the track front-faced from
+                    // below here.
                     indices[ip++] = z * numVerticesX + x;
-                    indices[ip++] = z1 * numVerticesX + x;
-                    indices[ip++] = z * numVerticesX + x1;
                     indices[ip++] = z * numVerticesX + x1;
                     indices[ip++] = z1 * numVerticesX + x;
+                    indices[ip++] = z * numVerticesX + x1;
                     indices[ip++] = z1 * numVerticesX + x1;
+                    indices[ip++] = z1 * numVerticesX + x;
                 }
             }
         }
