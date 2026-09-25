@@ -8,6 +8,11 @@ import { Mat4, Vec3, Vec4 } from "../XnaMath.ts";
 import { SuperQuadric, SuperQuadricBatch } from "../SuperQuadric.ts";
 import { makeDotNetRandom, createSplineSurfaceOval, TrackCollision, type Ray, type Aabb } from "./Splines.ts";
 
+/** Wrap a loop coordinate (e.g. polar angle) into [0, 1). */
+function mod1(v: number): number {
+    return ((v % 1) + 1) % 1;
+}
+
 // Port of Content/fx/splinetrack.fx (world is identity for the track).
 const TRACK_VERTEX_SHADER = /* glsl */ `
 varying vec3 vWorld;
@@ -235,6 +240,32 @@ export class RaceTrack {
     /** Port of GetPointOnTrack(u, v[, out normal]). */
     public trackSurfacePoint(u: number, v: number, withNormal = false): { point: Vec3; normal: Vec3 } {
         return this.sst.getSurfacePoint(u, v, withNormal);
+    }
+
+    /**
+     * Nearest sampled point on the road surface (robustness helper for the
+     * vessel's border bounce): samples the main road band around the loop
+     * position nearest to `pos` in polar angle.
+     */
+    public nearestRoadPoint(pos: Vec3): Vec3 {
+        const v0 = mod1(Math.atan2(pos.z, pos.x) / (Math.PI * 2));
+        let best = new Vec3(0, 0, 0);
+        let bestDist = Infinity;
+        for (let dv = -0.04; dv <= 0.0401; dv += 0.005) {
+            const v = mod1(v0 + dv);
+            for (const u of [0.35, 0.45, 0.5, 0.55, 0.65]) {
+                const p = this.trackSurfacePoint(u, v).point;
+                const dx = p.x - pos.x;
+                const dy = p.y - pos.y;
+                const dz = p.z - pos.z;
+                const d = dx * dx + dy * dy + dz * dz;
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = p;
+                }
+            }
+        }
+        return best;
     }
 
     /** Culls the buildings against the view frustum and uploads them. */
