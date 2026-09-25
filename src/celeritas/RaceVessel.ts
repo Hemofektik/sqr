@@ -1,17 +1,13 @@
 /**
- * RaceVessel - port of Celeritas/RaceVessel.cs: the spring-driven racing
- * ship with ground/side collision rays against the track.
+ * RaceVessel - the Celeritas racing ship, driven by Rapier rigid-body
+ * physics: gravity, a four-ray suspension, contacts against the track
+ * trimesh, thrust and steering torques. Deliberate deviation from the
+ * original XNA spring physics so the ship can go airborne, jump off the
+ * terrain, land and bounce instead of being glued to the road.
  */
 import { Mat4, Quat, Vec3, Vec4 } from "../XnaMath.ts";
 import { SuperQuadric } from "../SuperQuadric.ts";
-import {
-    CollisionResponseSpring,
-    DistanceSpring,
-    Motor,
-    PhysicsObject,
-    StayUprightConstraint,
-    TorqueSpring,
-} from "./Physics.ts";
+import { FIXED_STEP, type CeleritasWorld } from "./RacePhysics.ts";
 import type { RaceTrack } from "./RaceTrack.ts";
 
 function rowVec(m: Mat4, row: number): Vec3 {
@@ -19,74 +15,64 @@ function rowVec(m: Mat4, row: number): Vec3 {
     return new Vec3(e[row * 4] ?? 0, e[row * 4 + 1] ?? 0, e[row * 4 + 2] ?? 0);
 }
 
-/** Bounciness of the hull against the track border (robustness addition). */
-const SIDE_RESTITUTION = 0.5;
-/**
- * The distance spring's target freezes at the last road hit while the down
- * ray misses. Once the stretch exceeds this limit the ship would be pinned
- * against the motor's thrust, so the suspension is released instead.
- */
-const STALE_SPRING_LIMIT = 6;
-/** Consecutive down-ray misses before the border bounce kicks in (lets
- * transient mid-road ray holes pass without deflecting the ship). */
-const MISS_STREAK_BOUNCE = 3;
-/** How close the last road point must be for a departure to count as a
- * border hit rather than free flight beyond the track. */
-const BORDER_BOUNCE_RANGE = 30;
-/** Bounciness when leaving the track over the border. */
-const BORDER_RESTITUTION = 0.5;
-/** Max yaw per frame while border-bouncing (radians), swinging the hull
- * back toward the road so the motor drives the ship home. */
-const BORDER_YAW_RATE = 0.12;
+function wrapPi(a: number): number {
+    if (a < -Math.PI) return a + Math.PI * 2;
+    if (a > Math.PI) return a - Math.PI * 2;
+    return a;
+}
 
-export class RaceVessel extends PhysicsObject {
-    public speedMax: number;
+/** Suspension ray reach - the hover gap below the hull corners. Must keep
+ * margin over the equilibrium compression (m*g*cos(theta)/(4K)), otherwise
+ * rays miss on tilted banks and the hull bottoms out into a friction lock. */
+const SUSPENSION_LENGTH = 1.6;
+/** Spring stiffness / damping per suspension ray (total ship mass is 1). */
+const SUSPENSION_K = 60;
+const SUSPENSION_DAMPING = 5;
+/** Lateral grip while grounded: slip along the hull's right axis is damped
+ * and capped at mu * spring load (Coulomb). Without this a hovering hull
+ * slides straight down the track's steep banks - the original only held on
+ * because its springs accidentally pulled sideways toward the road point. */
+const GRIP_K = 8;
+const GRIP_MU = 2;
+/** Full-throttle force; with the body's linear damping (0.65) the top
+ * speed settles around 400 m/s. */
+const THRUST = 260;
+/** Steering torque scales (steeringAmount keeps the original's units).
+ * Sized against the hull's inertia and angular damping: at full input the
+ * yaw must reach ~0.5 rad/s to hold a 1000-radius turn at 300 m/s. */
+const YAW_TORQUE = 0.5;
+const PITCH_TORQUE = 0.3;
+/** Self-righting assist toward world up, in world axes like the original
+ * StayUprightConstraint but fighting real angular velocity. */
+const UPRIGHT_K = 50;
+const UPRIGHT_DAMPING = 4;
+/** Below this height the ship has fallen out of the world: respawn. */
+const RESPAWN_Y = -200;
+
+export class RaceVessel {
     public steeringSpeedMax: Vec3;
     public steeringAccelerationScale: Vec3;
 
+    private readonly phys: CeleritasWorld;
     private readonly raceTrack: RaceTrack;
-    private readonly stayUprightConstraint: StayUprightConstraint;
-    private readonly distanceSpring: DistanceSpring;
-    private readonly motor: Motor;
-    private readonly steeringThruster: TorqueSpring;
-    private readonly groundCollision: CollisionResponseSpring;
-    private readonly sideCollision: CollisionResponseSpring;
 
     /** Draw state: local voxel matrices + their shared SuperQuadrics. */
     private readonly sqLocals: { sq: SuperQuadric; local: Mat4 }[] = [];
     public readonly sqs: SuperQuadric[] = [];
 
-    public trackNormal = new Vec3(0, 0, 0);
+    public trackNormal = new Vec3(0, 1, 0);
     private steeringAmount = new Vec3(0, 0, 0);
-    private accelerationAmount = 0;
-    private accelerationAmountDelta = 0;
-
-    /** Consecutive down-ray misses (border bounce arming). */
-    private missStreak = 0;
+    private throttle = 0;
+    private accumulator = 0;
 
     /** Rotation used for the current draw (incl. steering roll), for lighting. */
     public lastDrawRotation = Quat.identity();
 
-    public constructor(raceTrack: RaceTrack) {
-        super(1, 1);
+    public constructor(phys: CeleritasWorld, raceTrack: RaceTrack) {
+        this.phys = phys;
         this.raceTrack = raceTrack;
-        this.speedMax = 2500;
         this.steeringSpeedMax = new Vec3(500, 550, 0);
         this.steeringAccelerationScale = new Vec3(30, 100, 0);
-
-        this.stayUprightConstraint = new StayUprightConstraint(Vec3.up, 200, 40);
-        this.distanceSpring = new DistanceSpring(new Vec3(0, 0, 0), 1000, 20, 0.5);
-        this.motor = new Motor(100, 1);
-        this.steeringThruster = new TorqueSpring(400, 100);
-        this.groundCollision = new CollisionResponseSpring(false, 10000, 200);
-        this.sideCollision = new CollisionResponseSpring(false, 20000, 200);
-
-        this.addSpring(this.stayUprightConstraint);
-        this.addSpring(this.distanceSpring);
-        this.addSpring(this.motor);
-        this.addSpring(this.steeringThruster);
-        this.addSpring(this.groundCollision);
-        this.addSpring(this.sideCollision);
 
         // Voxel grid hull (zBias wedge filter ported verbatim).
         const scale = 0.2;
@@ -112,185 +98,151 @@ export class RaceVessel extends PhysicsObject {
     }
 
     public get position(): Vec3 {
-        return this.physicalPosition;
+        const t = this.phys.ship.translation();
+        return new Vec3(t.x, t.y, t.z);
     }
 
     public set position(value: Vec3) {
-        this.physicalPosition = value;
-        this.distanceSpring.position = Vec3.add(value, Vec3.up);
+        this.phys.ship.setTranslation({ x: value.x, y: value.y, z: value.z }, true);
     }
 
     public get rotation(): Quat {
-        return this.physicalRotation;
+        const r = this.phys.ship.rotation();
+        return new Quat(r.x, r.y, r.z, r.w);
     }
 
     public set rotation(value: Quat) {
-        this.physicalRotation = value;
+        this.phys.ship.setRotation({ x: value.x, y: value.y, z: value.z, w: value.w }, true);
     }
 
     public get speed(): number {
-        return this.physicalVelocity.length();
+        const v = this.phys.ship.linvel();
+        return Math.hypot(v.x, v.y, v.z);
     }
 
     public set velocityVector(value: Vec3) {
-        this.physicalVelocity = value;
+        this.phys.ship.setLinvel({ x: value.x, y: value.y, z: value.z }, true);
     }
 
-    /** Port of RaceVessel.Update. */
-    public update(time: number, deltaTime: number): void {
-        this.updatePhysicsConstantTimeStep(time, deltaTime);
-
-        const rotation = this.physicalRotation.toMat4();
-        const up = rowVec(rotation, 1);
-        const down = Vec3.scale(up, -1);
-        const right = rowVec(rotation, 0);
-        const left = Vec3.scale(right, -1);
-
-        // Collision ray down.
-        {
-            const ray = { position: Vec3.add(this.position, Vec3.scale(up, 5)), direction: down };
-            let hit = this.raceTrack.firstTrackHit(ray);
-            if (hit === undefined) {
-                // Robustness: when the hull rolls at the border the tilted
-                // ray can graze past a surface that is still directly below -
-                // retry vertically before declaring a miss.
-                hit = this.raceTrack.firstTrackHit({
-                    position: Vec3.add(this.position, new Vec3(0, 5, 0)),
-                    direction: new Vec3(0, -1, 0),
-                });
-            }
-            if (hit !== undefined) {
-                this.missStreak = 0;
-                this.stayUprightConstraint.targetOrientation = hit.normal;
-                this.distanceSpring.position = hit.position;
-
-                const sizeOfMesh = 1;
-                const distanceToCollisionPoint = Vec3.sub(hit.position, this.position).length();
-                const penetrationDepth = sizeOfMesh - distanceToCollisionPoint;
-                if (penetrationDepth > 0) {
-                    this.groundCollision.normal = hit.normal;
-                    this.groundCollision.penetrationDepth = penetrationDepth;
-                    this.groundCollision.enabled = true;
-                    this.trackNormal = hit.normal;
-                } else {
-                    this.groundCollision.enabled = false;
-                }
-            } else {
-                this.groundCollision.enabled = false;
-                this.missStreak++;
-                // Robustness (not in the original): the frozen distance-spring
-                // target keeps pulling toward the last road point forever,
-                // which pins the ship once the ray misses for good (e.g. after
-                // leaving the border). Beyond a stretch the original would
-                // never recover from, release the suspension so the vessel
-                // coasts free until the ray hits the track again.
-                const stale = Vec3.sub(this.distanceSpring.position, this.position);
-                if (stale.length() > STALE_SPRING_LIMIT) {
-                    const upNow = rowVec(this.physicalRotation.toMat4(), 1);
-                    // Rest length of the DistanceSpring (0.5).
-                    this.distanceSpring.position = Vec3.add(this.position, Vec3.scale(upNow, 0.5));
-                }
-                // Border bounce: once the miss persists the ship is leaving
-                // over the track border - find the nearest road point and
-                // reflect the motion directly away from it so the ship bounces
-                // back instead of escaping or getting captured at the edge.
-                // (A frozen last-hit point would go stale under tangential
-                // travel; the nearest point tracks the ship each frame.)
-                if (this.missStreak >= MISS_STREAK_BOUNCE) {
-                    const away = Vec3.sub(this.position, this.raceTrack.nearestRoadPoint(this.position));
-                    // Horizontal only: the ship may be descending toward the
-                    // road while sliding off it sideways - the reflection must
-                    // act on the lateral escape, not the vertical motion.
-                    away.y = 0;
-                    const dist = away.length();
-                    if (dist > 1e-3 && dist < BORDER_BOUNCE_RANGE) {
-                        const dir = Vec3.scale(away, 1 / dist);
-                        const velocity = this.physicalVelocity;
-                        const awaySpeed = dir.x * velocity.x + dir.z * velocity.z;
-                        if (awaySpeed > 0) {
-                            const vx = velocity.x - (1 + BORDER_RESTITUTION) * awaySpeed * dir.x;
-                            const vz = velocity.z - (1 + BORDER_RESTITUTION) * awaySpeed * dir.z;
-                            this.physicalVelocity = new Vec3(vx, velocity.y, vz);
-                        }
-                        // Swing the hull back toward the road so the motor
-                        // drives the ship home instead of re-accelerating
-                        // off the edge (velocity reflections alone cannot
-                        // overcome a nose that still points outward).
-                        const backward = rowVec(rotation, 2);
-                        const hl = Math.hypot(backward.x, backward.z) || 1;
-                        const nx = backward.x / hl;
-                        const nz = backward.z / hl;
-                        const toX = -dir.x;
-                        const toZ = -dir.z;
-                        const crossY = nz * toX - nx * toZ;
-                        const dotT = nx * toX + nz * toZ;
-                        const yawErr = Math.max(
-                            -BORDER_YAW_RATE,
-                            Math.min(BORDER_YAW_RATE, Math.atan2(crossY, dotT)),
-                        );
-                        this.physicalRotation = Quat.createFromYawPitchRoll(yawErr, 0, 0).multiply(this.physicalRotation);
-                    }
-                }
-            }
+    /** Fixed-step rigid-body update: suspension, thrust, steering, upright. */
+    public update(_time: number, deltaTime: number): void {
+        this.accumulator += Math.min(deltaTime, 0.1);
+        while (this.accumulator >= FIXED_STEP) {
+            this.stepPhysics(FIXED_STEP);
+            this.accumulator -= FIXED_STEP;
         }
 
-        // Collision rays to the side. The original fired only a rightward ray
-        // and could keep the spring enabled with a stale normal when the
-        // surface faced away - both allowed the border to capture the ship.
-        // A wall hit now bounces the hull instead.
-        {
-            const sizeOfMesh = 2;
-            const rays = [
-                { position: Vec3.add(this.position, Vec3.scale(left, sizeOfMesh)), direction: right },
-                { position: Vec3.add(this.position, Vec3.scale(right, sizeOfMesh)), direction: left },
-            ];
-            let wallNormal: Vec3 | undefined;
-            let wallPenetration = 0;
-            for (const ray of rays) {
-                const hit = this.raceTrack.firstTrackHit(ray);
-                if (hit === undefined || Vec3.dot(hit.normal, ray.direction) > -0.5) {
-                    continue; // miss, or surface faces away - not a wall
-                }
-                const distanceToCollisionPoint = Vec3.sub(hit.position, this.position).length();
-                const penetrationDepth = sizeOfMesh - distanceToCollisionPoint;
-                if (penetrationDepth > 0) {
-                    wallNormal = hit.normal;
-                    wallPenetration = penetrationDepth;
-                    break;
-                }
-            }
-            if (wallNormal !== undefined) {
-                this.sideCollision.normal = wallNormal;
-                this.sideCollision.penetrationDepth = wallPenetration;
-                this.sideCollision.enabled = true;
-                // Bounce: pop the hull back out of the wall and reflect the
-                // velocity along its normal with restitution.
-                this.physicalPosition = Vec3.add(this.position, Vec3.scale(wallNormal, wallPenetration));
-                const velocity = this.physicalVelocity;
-                const normalVelocity = Vec3.dot(velocity, wallNormal);
-                if (normalVelocity < 0) {
-                    this.physicalVelocity = Vec3.sub(
-                        velocity,
-                        Vec3.scale(wallNormal, (1 + SIDE_RESTITUTION) * normalVelocity),
-                    );
-                }
-            } else {
-                this.sideCollision.enabled = false;
-            }
-        }
-
-        this.accelerationAmount += (this.speedMax - this.accelerationAmount) * this.accelerationAmountDelta * deltaTime;
-        this.accelerationAmount -= this.accelerationAmount * 0.5 * deltaTime;
-        this.accelerationAmountDelta = 0;
-
-        this.motor.tightness = (Math.abs(this.accelerationAmount) / this.speedMax) * 10;
-        this.motor.targetVelocity = Vec3.scale(rowVec(rotation, 2), this.accelerationAmount);
-
+        // Steering input decays between frames (as in the original).
         this.steeringAmount.x *= 0.5 - deltaTime;
         this.steeringAmount.y *= 0.5 - deltaTime;
         this.steeringAmount.z *= 0.5 - deltaTime;
-        this.steeringThruster.tightness = 1;
-        this.steeringThruster.targetTorque = this.steeringAmount.clone();
+
+        // Failsafe: never fall out of the world - respawn on the track.
+        if (this.position.y < RESPAWN_Y) {
+            const road = this.raceTrack.nearestRoadPoint(this.position);
+            this.position = Vec3.add(road, new Vec3(0, 6, 0));
+            this.velocityVector = new Vec3(0, 0, 0);
+        }
+    }
+
+    private stepPhysics(dt: number): void {
+        const body = this.phys.ship;
+        const rotation = this.rotation.toMat4();
+        const right = rowVec(rotation, 0);
+        const up = rowVec(rotation, 1);
+        const forward = rowVec(rotation, 2); // thrust axis (image of +Z)
+        const position = this.position;
+        const linvel = body.linvel();
+        const omega = body.angvel();
+
+        // Suspension: four downward rays with a push-only spring-damper.
+        // Push-only matters: nothing pulls the ship toward the road, so it
+        // leaves the ground and jumps instead of being glued down.
+        let grounded = false;
+        const corners = [
+            new Vec3(-0.8, 0.1, -0.8),
+            new Vec3(0.8, 0.1, -0.8),
+            new Vec3(-0.8, 0.1, 2.0),
+            new Vec3(0.8, 0.1, 2.0),
+        ];
+        for (const corner of corners) {
+            const origin = new Vec3(
+                position.x + right.x * corner.x + up.x * corner.y + forward.x * corner.z,
+                position.y + right.y * corner.x + up.y * corner.y + forward.y * corner.z,
+                position.z + right.z * corner.x + up.z * corner.y + forward.z * corner.z,
+            );
+            const hit = this.phys.castRay(origin, Vec3.scale(up, -1), SUSPENSION_LENGTH);
+            if (hit === undefined) {
+                continue;
+            }
+            grounded = true;
+            this.trackNormal = hit.normal;
+            const contact = new Vec3(
+                origin.x - up.x * hit.toi,
+                origin.y - up.y * hit.toi,
+                origin.z - up.z * hit.toi,
+            );
+            const r = Vec3.sub(contact, position);
+            const pointVel = Vec3.add(new Vec3(linvel.x, linvel.y, linvel.z), Vec3.cross(new Vec3(omega.x, omega.y, omega.z), r));
+            const normalVel = Vec3.dot(pointVel, hit.normal);
+            const force = SUSPENSION_K * (SUSPENSION_LENGTH - hit.toi) - SUSPENSION_DAMPING * normalVel;
+            if (force > 0) {
+                body.applyImpulseAtPoint(
+                    { x: hit.normal.x * force * dt, y: hit.normal.y * force * dt, z: hit.normal.z * force * dt },
+                    { x: contact.x, y: contact.y, z: contact.z },
+                    true,
+                );
+                // Lateral grip: resist slip along the hull's right axis,
+                // capped by Coulomb friction (mu * load) so it releases
+                // before it can fight the thrust or steering.
+                const latSpeed = Vec3.dot(pointVel, right);
+                const grip = Math.max(-GRIP_MU * force, Math.min(GRIP_MU * force, -latSpeed * GRIP_K));
+                if (grip !== 0) {
+                    body.applyImpulseAtPoint(
+                        { x: right.x * grip * dt, y: right.y * grip * dt, z: right.z * grip * dt },
+                        { x: contact.x, y: contact.y, z: contact.z },
+                        true,
+                    );
+                }
+            }
+        }
+
+        // Thrust (works in the air too, like the original motor).
+        if (this.throttle !== 0) {
+            const impulse = this.throttle * THRUST * dt;
+            body.applyImpulse(
+                { x: forward.x * impulse, y: forward.y * impulse, z: forward.z * impulse },
+                true,
+            );
+        }
+
+        // Steering: torque around the hull's own axes (also works in the air).
+        const pitch = this.steeringAmount.x * PITCH_TORQUE * dt;
+        const yaw = this.steeringAmount.y * YAW_TORQUE * dt;
+        body.applyTorqueImpulse(
+            {
+                x: right.x * pitch + up.x * yaw,
+                y: right.y * pitch + up.y * yaw,
+                z: right.z * pitch + up.z * yaw,
+            },
+            true,
+        );
+        // Self-righting assist: while grounded, hug the surface normal (like
+        // the original StayUprightConstraint following the road); in the air,
+        // level toward world up. Damped by real angular velocity.
+        const target = grounded ? this.trackNormal : new Vec3(0, 1, 0);
+        const errX = wrapPi(Math.atan2(up.y, up.z) - Math.atan2(target.y, target.z));
+        const errZ = wrapPi(Math.atan2(up.x, up.y) - Math.atan2(target.x, target.y));
+        body.applyTorqueImpulse(
+            {
+                x: (errX * UPRIGHT_K - omega.x * UPRIGHT_DAMPING) * dt,
+                y: 0,
+                z: (errZ * UPRIGHT_K - omega.z * UPRIGHT_DAMPING) * dt,
+            },
+            true,
+        );
+
+        this.phys.step(dt);
     }
 
     /** Port of Steer: accumulate clamped steering torque. */
@@ -307,9 +259,9 @@ export class RaceVessel extends PhysicsObject {
         );
     }
 
-    /** Port of Accelerate. */
+    /** Port of Accelerate: throttle in [-1, 1], fed every frame. */
     public accelerate(amount: number): void {
-        this.accelerationAmountDelta += amount;
+        this.throttle = Math.max(-1, Math.min(1, amount));
     }
 
     /**
@@ -319,7 +271,7 @@ export class RaceVessel extends PhysicsObject {
      */
     public prepareDraw(): Quat {
         const roll = Quat.createFromYawPitchRoll(0, 0, -this.steeringAmount.y * 0.01);
-        const vesselRotation = this.physicalRotation.multiply(roll);
+        const vesselRotation = this.rotation.multiply(roll);
         this.lastDrawRotation = vesselRotation;
         const rotMat = vesselRotation.toMat4();
         // Port: Matrix.CreateWorld(Position, vesselRotation.Forward, vesselRotation.Up)

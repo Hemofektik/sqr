@@ -102,6 +102,9 @@ export class RaceTrack {
     /** Prepared per frame: visible buildings uploaded into this batch. */
     public readonly buildingsBatch: SuperQuadricBatch;
     public readonly trackMaterial: ShaderMaterial;
+    /** Render mesh data, reused as the Rapier trimesh collider. */
+    public readonly renderVertices: Float32Array;
+    public readonly renderIndices: Uint16Array;
     private readonly sst: ReturnType<typeof createSplineSurfaceOval>;
 
     public constructor() {
@@ -165,6 +168,8 @@ export class RaceTrack {
             }
         }
         const geometry = new BufferGeometry();
+        this.renderVertices = positions;
+        this.renderIndices = indices;
         geometry.setAttribute("position", new BufferAttribute(positions, 3));
         geometry.setAttribute("normal", new BufferAttribute(normals, 3));
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));

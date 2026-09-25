@@ -9,6 +9,7 @@ import type { ScreenContext } from "./ScreenManager.ts";
 import { Mat4, Quat, Vec3, Vec4 } from "./XnaMath.ts";
 import { SuperQuadric, SuperQuadricBatch, applyXnaCamera } from "./SuperQuadric.ts";
 import { RaceTrack, applyTrackUniforms } from "./celeritas/RaceTrack.ts";
+import { CeleritasWorld, initRapier } from "./celeritas/RacePhysics.ts";
 import { RaceVessel } from "./celeritas/RaceVessel.ts";
 import { Tacho } from "./celeritas/Tacho.ts";
 
@@ -43,28 +44,12 @@ export class CeleritasScreen extends GameScreen {
     }
 
     protected override onBound(): void {
-        // Port of LoadContent.
+        // Port of LoadContent (physics init is async - setupVessel finishes it).
         const font = this.manager?.context.font;
         if (font === undefined) {
             return;
         }
         this.raceTrack = getSharedTrack();
-        this.raceVessel = new RaceVessel(this.raceTrack);
-
-        const inFrontOfVessel = this.raceTrack.trackSurfacePoint(0.5, 0.001).point;
-        const start = this.raceTrack.trackSurfacePoint(0.5, 0, true);
-        const upNormal = start.normal;
-        this.raceVessel.position = Vec3.add(start.point, Vec3.scale(upNormal, 3));
-        // Port: Rotation = Invert(LookAt(inFront, position, up)) as quaternion.
-        const la = Mat4.createLookAt(inFrontOfVessel, this.raceVessel.position, upNormal);
-        this.raceVessel.rotation = Quat.fromMat4(transposeRotation(la));
-        this.raceVessel.velocityVector = new Vec3(0, 0, 0);
-
-        this.vesselBatch = new SuperQuadricBatch(4, this.raceVessel.sqs.length + 1);
-        this.scene.add(this.vesselBatch.mesh);
-        this.scene.add(this.raceTrack.trackMesh);
-        this.scene.add(this.raceTrack.buildingsBatchMesh);
-
         this.tacho = new Tacho(font);
 
         // Port: AudioManager.SetMusicVolume(2.0f) - boost music for the race.
@@ -72,6 +57,34 @@ export class CeleritasScreen extends GameScreen {
         if (cfg !== undefined) {
             this.manager?.context.applyAudioVolumes(cfg.sfxVolume, Math.min(1, cfg.musicVolume * 2));
         }
+
+        // Rapier's WASM module loads async; update/draw guard on raceVessel
+        // until the physics world and vessel exist.
+        void initRapier().then(() => this.setupVessel());
+    }
+
+    private setupVessel(): void {
+        const track = this.raceTrack;
+        if (track === undefined || this.raceVessel !== undefined) {
+            return;
+        }
+        const phys = new CeleritasWorld(track);
+        const vessel = new RaceVessel(phys, track);
+
+        const inFrontOfVessel = track.trackSurfacePoint(0.5, 0.001).point;
+        const start = track.trackSurfacePoint(0.5, 0, true);
+        const upNormal = start.normal;
+        vessel.position = Vec3.add(start.point, Vec3.scale(upNormal, 3));
+        // Port: Rotation = Invert(LookAt(inFront, position, up)) as quaternion.
+        const la = Mat4.createLookAt(inFrontOfVessel, vessel.position, upNormal);
+        vessel.rotation = Quat.fromMat4(transposeRotation(la));
+        vessel.velocityVector = new Vec3(0, 0, 0);
+
+        this.vesselBatch = new SuperQuadricBatch(4, vessel.sqs.length + 1);
+        this.scene.add(this.vesselBatch.mesh);
+        this.scene.add(track.trackMesh);
+        this.scene.add(track.buildingsBatchMesh);
+        this.raceVessel = vessel;
     }
 
     /** Restore the user's music volume when leaving (original never did; we do). */
