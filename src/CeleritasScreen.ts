@@ -144,16 +144,17 @@ export class CeleritasScreen extends GameScreen {
         const projMatrix = Mat4.createPerspectiveFieldOfView(1.8, ctx.viewportWidth / ctx.viewportHeight, 0.5, 10000);
 
         // --- Vessel pass (port of RaceVessel.Draw) --------------------------
-        const baseLight = SuperQuadric.lightDir.clone();
-        const vesselRot = vessel.prepareDraw();
+        vessel.prepareDraw();
         SuperQuadric.skyColor = new Vec4(0.2, 0.2, 0.2, 1);
         SuperQuadric.groundColor = new Vec4(0.1, 0.1, 0.1, 1);
-        // Light transformed into vessel space (TransformNormal with inverse).
-        const invRot = new Quat(-vesselRot.x, -vesselRot.y, -vesselRot.z, vesselRot.w);
-        SuperQuadric.setLightDir(invRot.rotate(baseLight));
+        // The original rotates LightDir into vessel space because its shader
+        // transforms normals only by the voxel-local matrix (viewManipulation
+        // is folded into the view matrix there). Our batch composes the full
+        // world matrix into each instance, so normals are world-space and the
+        // light must stay in world space - rotating it here applies the vessel
+        // rotation twice and lights the ship from the wrong side.
         vesselBatch.setInstances(vessel.sqs);
         vesselBatch.setGlobals(viewPosition);
-        SuperQuadric.setLightDir(baseLight);
 
         // --- Track + buildings pass (port of RaceTrack.Draw) ----------------
         SuperQuadric.skyColor = new Vec4(0.3, 0.3, 0.3, 1);
