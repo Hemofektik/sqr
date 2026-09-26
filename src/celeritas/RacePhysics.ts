@@ -43,11 +43,11 @@ export class CeleritasWorld {
         // see is exactly what you collide with (no ray probes, no holes).
         this.world.createCollider(
             RAPIER.ColliderDesc.trimesh(track.renderVertices, new Uint32Array(track.renderIndices))
-                .setRestitution(0.25)
+                .setRestitution(0.05)
                 // Traction comes from the vessel's suspension grip, not
                 // collider friction - keep this low so wedged hulls slide
                 // free instead of locking against steep terrain faces.
-                .setFriction(0.2),
+                .setFriction(0.05),
             scenery,
         );
 
@@ -57,10 +57,10 @@ export class CeleritasWorld {
             this.world.createCollider(
                 RAPIER.ColliderDesc.cuboid(b.dimension.x, b.dimension.y, b.dimension.z)
                     .setTranslation(e[12] ?? 0, e[13] ?? 0, e[14] ?? 0)
-                    .setRestitution(0.3)
+                    .setRestitution(0.1)
                     // Low like the track: high friction here let a throttled
                     // hull stick to a building wall in mid-air.
-                    .setFriction(0.2),
+                    .setFriction(0.05),
                 scenery,
             );
         }
@@ -83,8 +83,8 @@ export class CeleritasWorld {
             // glance off instead.
             RAPIER.ColliderDesc.roundCuboid(1, 0.4, 1.9, 0.35)
                 .setTranslation(0, 0.1, 0.9)
-                .setRestitution(0.1)
-                .setFriction(0.2)
+                .setRestitution(0.05)
+                .setFriction(0.05)
                 .setMass(1),
             this.ship,
         );

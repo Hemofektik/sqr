@@ -32,6 +32,14 @@ const SUSPENSION_LENGTH = 1.0;
  * for the rays to keep hitting when the hull rolls on a bank. */
 const SUSPENSION_K = 40;
 const SUSPENSION_DAMPING = 5;
+/** Per-ray suspension force ceiling. Without it a fast descent spikes the
+ * damping term (D * 31 m/s = 155 N/ray -> 620 N total) and catapults the
+ * ship off the track; hard landings are absorbed by the hull contact
+ * (restitution ~0) instead. */
+const SUSPENSION_FORCE_MAX = 80;
+/** Arcade downforce while grounded: presses the hull onto the surface so
+ * it stops skating off at speed (classic racing-game grip scaling). */
+const DOWNFORCE = 15;
 /** Lateral grip while grounded: slip along the hull's right axis is damped
  * and capped at mu * spring load (Coulomb). Without this a hovering hull
  * slides straight down the track's steep banks - the original only held on
@@ -59,7 +67,10 @@ const STEERING_INPUT_MAX_X = 28;
  * the ground so turns grip, gently in the air for AGR-style float. */
 const GRIP_ALIGN_GROUNDED = 6;
 const GRIP_ALIGN_AIR = 1.2;
-const GRIP_ALIGN_FORCE_MAX = 100;
+/** Grounded align cap must cover the centripetal demand of a full-lock
+ * turn at top speed: m*v^2/R = 400^2/757 ~ 211 N. At the old 100 N the
+ * force saturated and the ship skated loose off the racing line. */
+const GRIP_ALIGN_FORCE_MAX = 400;
 /** Airborne grip must stay well below weight (m*g = 20 N) - at the old
  * 25 N cap a rolled hull falling treated its drop speed as sideslip and
  * pushed up harder than gravity, cancelling the fall. */
@@ -209,7 +220,10 @@ export class RaceVessel {
             const r = Vec3.sub(contact, position);
             const pointVel = Vec3.add(new Vec3(linvel.x, linvel.y, linvel.z), Vec3.cross(new Vec3(omega.x, omega.y, omega.z), r));
             const normalVel = Vec3.dot(pointVel, hit.normal);
-            const force = SUSPENSION_K * (SUSPENSION_LENGTH - hit.toi) - SUSPENSION_DAMPING * normalVel;
+            const force = Math.min(
+                SUSPENSION_FORCE_MAX,
+                SUSPENSION_K * (SUSPENSION_LENGTH - hit.toi) - SUSPENSION_DAMPING * normalVel,
+            );
             if (force > 0) {
                 body.applyImpulseAtPoint(
                     { x: hit.normal.x * force * dt, y: hit.normal.y * force * dt, z: hit.normal.z * force * dt },
@@ -225,6 +239,37 @@ export class RaceVessel {
                     body.applyImpulseAtPoint(
                         { x: right.x * grip * dt, y: right.y * grip * dt, z: right.z * grip * dt },
                         { x: contact.x, y: contact.y, z: contact.z },
+                        true,
+                    );
+                }
+            }
+        }
+
+        // Downforce while grounded: press onto the surface so the ship
+        // stays attached at speed instead of skating/bouncing off.
+        if (grounded) {
+            body.applyImpulse(
+                {
+                    x: -this.trackNormal.x * DOWNFORCE * dt,
+                    y: -this.trackNormal.y * DOWNFORCE * dt,
+                    z: -this.trackNormal.z * DOWNFORCE * dt,
+                },
+                true,
+            );
+            // Parking damp: at rest with no throttle, kill residual creep
+            // down the banks (collider friction alone cannot hold a 57
+            // degree slope without re-enabling wall pinning). Gated on
+            // speed so it never interferes with driving.
+            const speedNow = Math.hypot(linvel.x, linvel.y, linvel.z);
+            if (this.throttle === 0 && speedNow < 8) {
+                const brake = Math.min(30, speedNow * 6);
+                if (brake > 0) {
+                    body.applyImpulse(
+                        {
+                            x: -linvel.x / speedNow * brake * dt,
+                            y: -linvel.y / speedNow * brake * dt,
+                            z: -linvel.z / speedNow * brake * dt,
+                        },
                         true,
                     );
                 }
